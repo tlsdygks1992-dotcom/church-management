@@ -38,12 +38,14 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: str
 }
 
 const ROLE_STATUS_MAP: Record<string, string> = {
+  super_admin: 'submitted',
   president: 'submitted',
   manager: 'coordinator_reviewed',
   pastor: 'manager_approved',
 }
 
 const ROLE_LABELS: Record<string, string> = {
+  super_admin: '전체',
   president: '협조',
   manager: '결재',
   pastor: '확인',
@@ -77,10 +79,9 @@ export default function ApprovalsPage() {
     if (!userData) return
     setUserRole(userData.role)
 
-    const pendingStatus = ROLE_STATUS_MAP[userData.role]
-
-    // 결재 대기 목록 (역할에 맞는 상태)
-    if (pendingStatus) {
+    // 결재 대기 목록
+    if (userData.role === 'super_admin') {
+      // super_admin은 모든 결재 대기 보고서 조회
       const { data: pendingReports } = await supabase
         .from('weekly_reports')
         .select(`
@@ -88,10 +89,25 @@ export default function ApprovalsPage() {
           departments(name, code),
           users!weekly_reports_author_id_fkey(name)
         `)
-        .eq('status', pendingStatus)
+        .in('status', ['submitted', 'coordinator_reviewed', 'manager_approved'])
         .order('created_at', { ascending: false })
 
       setReports((pendingReports || []) as Report[])
+    } else {
+      const pendingStatus = ROLE_STATUS_MAP[userData.role]
+      if (pendingStatus) {
+        const { data: pendingReports } = await supabase
+          .from('weekly_reports')
+          .select(`
+            id, title, report_date, status, created_at,
+            departments(name, code),
+            users!weekly_reports_author_id_fkey(name)
+          `)
+          .eq('status', pendingStatus)
+          .order('created_at', { ascending: false })
+
+        setReports((pendingReports || []) as Report[])
+      }
     }
 
     // 처리 완료 목록 (역할에 따라 필터)
@@ -105,8 +121,10 @@ export default function ApprovalsPage() {
       .order('created_at', { ascending: false })
       .limit(20)
 
-    // 역할별로 자신이 처리한 항목만 표시
-    if (userData.role === 'president') {
+    // 역할별로 처리된 항목 표시
+    if (userData.role === 'super_admin') {
+      completedQuery = completedQuery.eq('status', 'final_approved')
+    } else if (userData.role === 'president') {
       completedQuery = completedQuery.in('status', ['coordinator_reviewed', 'manager_approved', 'final_approved'])
     } else if (userData.role === 'manager') {
       completedQuery = completedQuery.in('status', ['manager_approved', 'final_approved'])
@@ -146,7 +164,7 @@ export default function ApprovalsPage() {
     )
   }
 
-  if (!userRole || !['president', 'manager', 'pastor'].includes(userRole)) {
+  if (!userRole || !['super_admin', 'president', 'manager', 'pastor'].includes(userRole)) {
     return (
       <div className="p-4 md:p-6">
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 md:p-6 text-center">

@@ -1,14 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 
-interface UserDepartment {
-  department_id: string
-  is_team_leader: boolean
-}
-
 interface UserData {
   role: string
-  user_departments: UserDepartment[]
+  department_id: string | null
 }
 
 export default async function ReportsPage() {
@@ -17,13 +12,13 @@ export default async function ReportsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   const { data: userData } = await supabase
     .from('users')
-    .select('*, user_departments(department_id, is_team_leader)')
+    .select('role, department_id')
     .eq('id', user!.id)
     .single()
 
   const userInfo = userData as UserData | null
-  const isAdmin = userInfo?.role === 'super_admin' || userInfo?.role === 'president'
-  const isTeamLeader = userInfo?.user_departments?.some((ud) => ud.is_team_leader)
+  const isAdmin = userInfo?.role === 'super_admin' || userInfo?.role === 'president' || userInfo?.role === 'manager' || userInfo?.role === 'pastor'
+  const canWriteReport = isAdmin || userInfo?.role === 'leader'
 
   // 보고서 목록
   let reports: Array<{
@@ -37,23 +32,22 @@ export default async function ReportsPage() {
   }> = []
 
   if (isAdmin) {
+    // 관리자는 모든 보고서 조회
     const { data } = await supabase
       .from('weekly_reports')
       .select('*, departments(name), users!weekly_reports_author_id_fkey(name)')
       .order('report_date', { ascending: false })
       .limit(50)
     reports = (data || []) as typeof reports
-  } else {
-    const deptIds = userInfo?.user_departments?.map((ud) => ud.department_id) || []
-    if (deptIds.length > 0) {
-      const { data } = await supabase
-        .from('weekly_reports')
-        .select('*, departments(name), users!weekly_reports_author_id_fkey(name)')
-        .in('department_id', deptIds)
-        .order('report_date', { ascending: false })
-        .limit(50)
-      reports = (data || []) as typeof reports
-    }
+  } else if (userInfo?.department_id) {
+    // 일반 사용자는 자기 부서 보고서만
+    const { data } = await supabase
+      .from('weekly_reports')
+      .select('*, departments(name), users!weekly_reports_author_id_fkey(name)')
+      .eq('department_id', userInfo.department_id)
+      .order('report_date', { ascending: false })
+      .limit(50)
+    reports = (data || []) as typeof reports
   }
 
   return (
@@ -63,7 +57,7 @@ export default async function ReportsPage() {
           <h1 className="text-2xl font-bold text-gray-900">주차 보고서</h1>
           <p className="text-gray-500 mt-1">부서별 주간 보고서 관리</p>
         </div>
-        {isTeamLeader && (
+        {canWriteReport && (
           <Link
             href="/reports/new"
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors"
@@ -126,7 +120,7 @@ export default async function ReportsPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
             <p className="text-gray-500">아직 작성된 보고서가 없습니다.</p>
-            {isTeamLeader && (
+            {canWriteReport && (
               <Link href="/reports/new" className="inline-block mt-4 text-blue-600 hover:text-blue-700 font-medium">
                 첫 보고서 작성하기
               </Link>
