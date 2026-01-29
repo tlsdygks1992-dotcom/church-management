@@ -44,6 +44,19 @@ interface CellAttendance {
   note: string
 }
 
+// 5분 단위 시간 옵션 생성
+function generateTimeOptions() {
+  const options: string[] = []
+  for (let hour = 0; hour < 24; hour++) {
+    for (let minute = 0; minute < 60; minute += 5) {
+      const h = hour.toString().padStart(2, '0')
+      const m = minute.toString().padStart(2, '0')
+      options.push(`${h}:${m}`)
+    }
+  }
+  return options
+}
+
 export default function ReportForm({
   departments,
   defaultDate,
@@ -308,19 +321,25 @@ export default function ReportForm({
                 <tr key={index}>
                   <td className="px-2 py-2">
                     <div className="flex items-center gap-1">
-                      <input
-                        type="time"
+                      <select
                         value={program.start_time}
                         onChange={(e) => updateProgram(index, 'start_time', e.target.value)}
-                        className="w-24 px-2 py-1.5 border border-gray-200 rounded text-sm"
-                      />
-                      <span>~</span>
-                      <input
-                        type="time"
+                        className="w-[85px] px-2 py-1.5 border border-gray-200 rounded text-sm bg-white"
+                      >
+                        {generateTimeOptions().map((time) => (
+                          <option key={`start-${index}-${time}`} value={time}>{time}</option>
+                        ))}
+                      </select>
+                      <span className="text-gray-400">~</span>
+                      <select
                         value={program.end_time}
                         onChange={(e) => updateProgram(index, 'end_time', e.target.value)}
-                        className="w-24 px-2 py-1.5 border border-gray-200 rounded text-sm"
-                      />
+                        className="w-[85px] px-2 py-1.5 border border-gray-200 rounded text-sm bg-white"
+                      >
+                        {generateTimeOptions().map((time) => (
+                          <option key={`end-${index}-${time}`} value={time}>{time}</option>
+                        ))}
+                      </select>
                     </div>
                   </td>
                   <td className="px-2 py-2">
