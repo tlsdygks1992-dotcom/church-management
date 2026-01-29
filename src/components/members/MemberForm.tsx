@@ -59,20 +59,36 @@ export default function MemberForm({ departments, member }: MemberFormProps) {
       const file = fileInput?.files?.[0]
       if (file) {
         const fileExt = file.name.split('.').pop()
-        const fileName = `${Date.now()}.${fileExt}`
+        const fileName = `${member?.id || 'new'}_${Date.now()}.${fileExt}`
         const filePath = `members/${fileName}`
+
+        // 기존 사진 삭제 (수정 시)
+        if (isEdit && member?.photo_url) {
+          try {
+            const oldPath = member.photo_url.split('/photos/')[1]?.split('?')[0]
+            if (oldPath) {
+              await supabase.storage.from('photos').remove([oldPath])
+            }
+          } catch (e) {
+            console.log('기존 사진 삭제 실패 (무시):', e)
+          }
+        }
 
         const { error: uploadError } = await supabase.storage
           .from('photos')
-          .upload(filePath, file)
+          .upload(filePath, file, { upsert: true })
 
-        if (uploadError) throw uploadError
+        if (uploadError) {
+          console.error('업로드 오류:', uploadError)
+          throw uploadError
+        }
 
         const { data: { publicUrl } } = supabase.storage
           .from('photos')
           .getPublicUrl(filePath)
 
-        photo_url = publicUrl
+        // 캐시 방지를 위한 타임스탬프 추가
+        photo_url = `${publicUrl}?t=${Date.now()}`
       }
 
       if (isEdit) {
