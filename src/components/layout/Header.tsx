@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import NotificationBell from '@/components/notifications/NotificationBell'
 
 interface HeaderProps {
   user: {
@@ -54,10 +55,12 @@ export default function Header({ user }: HeaderProps) {
             <span className="text-white font-semibold">청파중앙교회</span>
           </div>
 
-          <button
-            onClick={() => setMenuOpen(!menuOpen)}
-            className="p-2 text-slate-300 hover:text-white"
-          >
+          <div className="flex items-center gap-1">
+            {user && <NotificationBell userId={user.id} />}
+            <button
+              onClick={() => setMenuOpen(!menuOpen)}
+              className="p-2 text-slate-300 hover:text-white"
+            >
             {menuOpen ? (
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -67,7 +70,8 @@ export default function Header({ user }: HeaderProps) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             )}
-          </button>
+            </button>
+          </div>
         </div>
       </header>
 

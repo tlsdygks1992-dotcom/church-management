@@ -40,7 +40,7 @@ export default async function MembersPage() {
   }
 
   // 교인 목록
-  let members: Array<{ id: string; name: string; phone: string | null; department_id: string; is_active: boolean; photo_url: string | null; joined_at: string; departments: { name: string } | null }> = []
+  let members: Array<{ id: string; name: string; phone: string | null; birth_date: string | null; department_id: string; is_active: boolean; photo_url: string | null; joined_at: string; departments: { name: string } | null }> = []
   if (isAdmin) {
     const { data } = await supabase
       .from('members')

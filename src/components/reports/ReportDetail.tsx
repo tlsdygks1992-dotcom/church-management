@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { createApprovalNotification } from '@/lib/notifications'
 import type { WeeklyReport, ReportProgram, Newcomer, ApprovalHistory, User } from '@/types/database'
 
 type ReportType = 'weekly' | 'meeting' | 'education'
@@ -244,6 +245,16 @@ export default function ReportDetail({
         from_status: report.status,
         to_status: newStatus,
         comment,
+      })
+
+      // 알림 생성
+      await createApprovalNotification(supabase, {
+        reportId: report.id,
+        fromStatus: report.status,
+        toStatus: newStatus,
+        departmentName: report.departments?.name || '',
+        reportType: reportType,
+        authorId: report.author_id,
       })
 
       setShowApprovalModal(false)

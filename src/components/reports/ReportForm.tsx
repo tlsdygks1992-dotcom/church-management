@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { createApprovalNotification } from '@/lib/notifications'
 
 type ReportType = 'weekly' | 'meeting' | 'education'
 
@@ -282,6 +283,19 @@ export default function ReportForm({
           )
 
         if (newcomerError) throw newcomerError
+      }
+
+      // 제출 시 알림 생성
+      if (!isDraft) {
+        const selectedDept = departments.find(d => d.id === form.department_id)
+        await createApprovalNotification(supabase, {
+          reportId: report.id,
+          fromStatus: 'draft',
+          toStatus: 'submitted',
+          departmentName: selectedDept?.name || '',
+          reportType: reportType,
+          authorId: authorId,
+        })
       }
 
       router.push(`/reports?type=${reportType}`)

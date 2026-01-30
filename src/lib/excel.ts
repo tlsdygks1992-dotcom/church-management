@@ -48,6 +48,7 @@ export function exportToExcel<T>(
 export interface MemberExportData {
   name: string
   phone: string | null
+  birthDate?: string
   department: string
   isActive: string
   joinedAt: string
@@ -59,6 +60,7 @@ export function exportMembersToExcel(members: MemberExportData[], filename?: str
     [
       { key: 'name', header: '이름' },
       { key: 'phone', header: '연락처' },
+      { key: 'birthDate', header: '생년월일' },
       { key: 'department', header: '부서' },
       { key: 'isActive', header: '활동상태' },
       { key: 'joinedAt', header: '등록일' },
