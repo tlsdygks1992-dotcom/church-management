@@ -38,10 +38,11 @@ export default function ReportDetail({
   // 부서명 표시
   const getDeptDisplayName = useCallback(() => {
     const code = report.departments?.code
-    if (code === 'cu1') return 'CU 1청년'
-    if (code === 'cu2') return 'CU 2청년'
+    if (code === 'ck') return '유치부/아동부'
+    if (code === 'cu_worship') return 'CU워십'
     if (code === 'youth') return '청소년부'
-    if (code === 'ck') return 'CK'
+    if (code === 'cu1') return '1청년'
+    if (code === 'cu2') return '2청년'
     return report.departments?.name || ''
   }, [report.departments])
 

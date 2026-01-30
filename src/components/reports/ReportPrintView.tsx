@@ -45,10 +45,11 @@ const ReportPrintView = forwardRef<HTMLDivElement, ReportPrintViewProps>(
     }
 
     const getDeptDisplayName = () => {
-      if (report.department_code === 'cu1') return 'CU 1청년'
-      if (report.department_code === 'cu2') return 'CU 2청년'
+      if (report.department_code === 'ck') return '유치부/아동부'
+      if (report.department_code === 'cu_worship') return 'CU워십'
       if (report.department_code === 'youth') return '청소년부'
-      if (report.department_code === 'ck') return 'CK'
+      if (report.department_code === 'cu1') return '1청년'
+      if (report.department_code === 'cu2') return '2청년'
       return report.department_name
     }
 
