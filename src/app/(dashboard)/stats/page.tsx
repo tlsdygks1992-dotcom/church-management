@@ -2,6 +2,21 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+} from 'recharts'
 
 interface Department {
   id: string
@@ -25,6 +40,17 @@ interface DepartmentStats {
   worshipRate: number
   meetingRate: number
 }
+
+const CHART_COLORS = [
+  '#3b82f6', // blue
+  '#22c55e', // green
+  '#f59e0b', // amber
+  '#ef4444', // red
+  '#8b5cf6', // violet
+  '#ec4899', // pink
+  '#06b6d4', // cyan
+  '#f97316', // orange
+]
 
 export default function StatsPage() {
   const [departments, setDepartments] = useState<Department[]>([])
@@ -214,11 +240,6 @@ export default function StatsPage() {
     return `${date.getMonth() + 1}/${date.getDate()}`
   }
 
-  const maxValue = Math.max(
-    ...weeklyStats.flatMap(s => [s.worship, s.meeting]),
-    1
-  )
-
   if (loading) {
     return (
       <div className="p-4 md:p-6">
@@ -344,42 +365,88 @@ export default function StatsPage() {
         <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">주간 출석 추이</h3>
 
         {weeklyStats.length > 0 ? (
-          <div className="space-y-3 md:space-y-4">
-            {/* 범례 */}
-            <div className="flex items-center gap-4 md:gap-6 text-xs md:text-sm">
-              <div className="flex items-center gap-1.5 md:gap-2">
-                <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded-full bg-blue-500"></div>
-                <span className="text-gray-600">예배</span>
-              </div>
-              <div className="flex items-center gap-1.5 md:gap-2">
-                <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded-full bg-green-500"></div>
-                <span className="text-gray-600">모임</span>
-              </div>
+          <div className="space-y-4">
+            {/* 라인 차트 */}
+            <div className="h-64 md:h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={weeklyStats} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis
+                    dataKey="week"
+                    tick={{ fontSize: 12, fill: '#6b7280' }}
+                    tickLine={false}
+                    axisLine={{ stroke: '#e5e7eb' }}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 12, fill: '#6b7280' }}
+                    tickLine={false}
+                    axisLine={{ stroke: '#e5e7eb' }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'white',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                    }}
+                    labelStyle={{ fontWeight: 600, marginBottom: 4 }}
+                  />
+                  <Legend
+                    verticalAlign="top"
+                    height={36}
+                    iconType="circle"
+                    iconSize={8}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="worship"
+                    name="예배"
+                    stroke="#3b82f6"
+                    strokeWidth={2}
+                    dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4 }}
+                    activeDot={{ r: 6 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="meeting"
+                    name="모임"
+                    stroke="#22c55e"
+                    strokeWidth={2}
+                    dot={{ fill: '#22c55e', strokeWidth: 2, r: 4 }}
+                    activeDot={{ r: 6 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
 
-            {/* 간단한 바 차트 */}
-            <div className="space-y-2 md:space-y-3">
-              {weeklyStats.map((stat, index) => (
-                <div key={index} className="flex items-center gap-2 md:gap-4">
-                  <div className="w-12 md:w-16 text-xs md:text-sm text-gray-500 font-medium flex-shrink-0">{stat.week}</div>
-                  <div className="flex-1 space-y-1">
-                    <div className="flex items-center gap-1.5 md:gap-2">
-                      <div
-                        className="h-4 md:h-5 bg-blue-500 rounded"
-                        style={{ width: `${Math.max((stat.worship / maxValue) * 100, 2)}%` }}
-                      ></div>
-                      <span className="text-xs text-gray-500">{stat.worship}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 md:gap-2">
-                      <div
-                        className="h-4 md:h-5 bg-green-500 rounded"
-                        style={{ width: `${Math.max((stat.meeting / maxValue) * 100, 2)}%` }}
-                      ></div>
-                      <span className="text-xs text-gray-500">{stat.meeting}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
+            {/* 바 차트 (비교용) */}
+            <div className="h-48 md:h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={weeklyStats} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                  <XAxis
+                    dataKey="week"
+                    tick={{ fontSize: 12, fill: '#6b7280' }}
+                    tickLine={false}
+                    axisLine={{ stroke: '#e5e7eb' }}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 12, fill: '#6b7280' }}
+                    tickLine={false}
+                    axisLine={{ stroke: '#e5e7eb' }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'white',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                    }}
+                  />
+                  <Bar dataKey="worship" name="예배" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="meeting" name="모임" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </div>
         ) : (
@@ -389,7 +456,117 @@ export default function StatsPage() {
         )}
       </div>
 
-      {/* 부서별 비교 */}
+      {/* 부서별 출석 분포 (파이 차트) */}
+      {departmentStats.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white rounded-xl p-4 md:p-6 border border-gray-100 shadow-sm">
+            <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-4">예배 출석 분포</h3>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={departmentStats.filter(d => d.worshipCount > 0)}
+                    dataKey="worshipCount"
+                    nameKey="department"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
+                    labelLine={{ stroke: '#9ca3af', strokeWidth: 1 }}
+                  >
+                    {departmentStats.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value) => [`${value}회`, '출석']}
+                    contentStyle={{
+                      backgroundColor: 'white',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl p-4 md:p-6 border border-gray-100 shadow-sm">
+            <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-4">모임 출석 분포</h3>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={departmentStats.filter(d => d.meetingCount > 0)}
+                    dataKey="meetingCount"
+                    nameKey="department"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
+                    labelLine={{ stroke: '#9ca3af', strokeWidth: 1 }}
+                  >
+                    {departmentStats.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value) => [`${value}회`, '출석']}
+                    contentStyle={{
+                      backgroundColor: 'white',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 부서별 출석률 비교 (가로 바 차트) */}
+      {departmentStats.length > 0 && (
+        <div className="bg-white rounded-xl p-4 md:p-6 border border-gray-100 shadow-sm">
+          <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-4">부서별 출석률 비교</h3>
+          <div className="h-64 md:h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={departmentStats}
+                layout="vertical"
+                margin={{ top: 5, right: 30, left: 60, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={true} vertical={false} />
+                <XAxis
+                  type="number"
+                  domain={[0, 100]}
+                  tick={{ fontSize: 12, fill: '#6b7280' }}
+                  tickFormatter={(value) => `${value}%`}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="department"
+                  tick={{ fontSize: 12, fill: '#6b7280' }}
+                  width={50}
+                />
+                <Tooltip
+                  formatter={(value) => [`${value}%`, '']}
+                  contentStyle={{
+                    backgroundColor: 'white',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                  }}
+                />
+                <Legend verticalAlign="top" height={36} />
+                <Bar dataKey="worshipRate" name="예배 출석률" fill="#3b82f6" radius={[0, 4, 4, 0]} />
+                <Bar dataKey="meetingRate" name="모임 출석률" fill="#22c55e" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* 부서별 상세 비교 */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="p-3 md:p-4 border-b border-gray-100">
           <h3 className="text-base md:text-lg font-semibold text-gray-900">부서별 출석 현황</h3>
