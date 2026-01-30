@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo, useCallback, memo } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 
 interface Department {
   id: string
@@ -25,18 +26,137 @@ interface MemberListProps {
   canEdit: boolean
 }
 
-export default function MemberList({ members, departments, canEdit }: MemberListProps) {
+// 디바운스 훅
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value)
+
+  useMemo(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value)
+    }, delay)
+
+    return () => {
+      clearTimeout(handler)
+    }
+  }, [value, delay])
+
+  return debouncedValue
+}
+
+// 메모이제이션된 그리드 카드
+const MemberGridCard = memo(function MemberGridCard({ member }: { member: MemberItem }) {
+  return (
+    <Link
+      href={`/members/${member.id}`}
+      className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100 active:shadow-md transition-shadow"
+    >
+      <div className="aspect-square bg-gray-100 relative">
+        {member.photo_url ? (
+          <Image
+            src={member.photo_url}
+            alt={member.name}
+            fill
+            sizes="(max-width: 640px) 33vw, (max-width: 768px) 25vw, 16vw"
+            className="object-cover"
+            loading="lazy"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-200 to-gray-300">
+            <span className="text-2xl lg:text-4xl font-bold text-gray-500">
+              {member.name.charAt(0)}
+            </span>
+          </div>
+        )}
+        {!member.is_active && (
+          <div className="absolute top-1 right-1 lg:top-2 lg:right-2 bg-gray-800/70 text-white text-[10px] lg:text-xs px-1.5 py-0.5 lg:px-2 lg:py-1 rounded">
+            비활성
+          </div>
+        )}
+      </div>
+      <div className="p-2 lg:p-3">
+        <p className="font-semibold text-gray-900 truncate text-xs lg:text-sm">{member.name}</p>
+        <p className="text-[10px] lg:text-sm text-gray-500 truncate">{member.departments?.name}</p>
+      </div>
+    </Link>
+  )
+})
+
+// 메모이제이션된 리스트 아이템
+const MemberListItem = memo(function MemberListItem({ member }: { member: MemberItem }) {
+  return (
+    <Link
+      href={`/members/${member.id}`}
+      className="flex items-center gap-3 p-3 lg:p-4 active:bg-gray-50 transition-colors"
+    >
+      <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-full overflow-hidden bg-gray-100 flex-shrink-0 relative">
+        {member.photo_url ? (
+          <Image
+            src={member.photo_url}
+            alt={member.name}
+            fill
+            sizes="48px"
+            className="object-cover"
+            loading="lazy"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-200 to-gray-300">
+            <span className="text-sm lg:text-base font-bold text-gray-500">
+              {member.name.charAt(0)}
+            </span>
+          </div>
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-gray-900 text-sm lg:text-base">{member.name}</p>
+        <div className="flex items-center gap-1.5 text-xs lg:text-sm text-gray-500 mt-0.5">
+          <span className="truncate">{member.departments?.name}</span>
+          {member.phone && (
+            <>
+              <span className="hidden lg:inline">·</span>
+              <span className="hidden lg:inline">{member.phone}</span>
+            </>
+          )}
+        </div>
+      </div>
+      {!member.is_active && (
+        <span className="text-[10px] lg:text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
+          비활성
+        </span>
+      )}
+      <svg className="w-4 h-4 lg:w-5 lg:h-5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+      </svg>
+    </Link>
+  )
+})
+
+export default function MemberList({ members, departments }: MemberListProps) {
   const [search, setSearch] = useState('')
   const [selectedDept, setSelectedDept] = useState<string>('all')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
 
-  // 필터링
-  const filteredMembers = members.filter((member) => {
-    const matchesSearch = member.name.toLowerCase().includes(search.toLowerCase()) ||
-      member.phone?.includes(search)
-    const matchesDept = selectedDept === 'all' || member.department_id === selectedDept
-    return matchesSearch && matchesDept
-  })
+  // 검색어 디바운스 (300ms)
+  const debouncedSearch = useDebounce(search, 300)
+
+  // 필터링 메모이제이션
+  const filteredMembers = useMemo(() => {
+    return members.filter((member) => {
+      const searchLower = debouncedSearch.toLowerCase()
+      const matchesSearch = !debouncedSearch ||
+        member.name.toLowerCase().includes(searchLower) ||
+        member.phone?.includes(debouncedSearch)
+      const matchesDept = selectedDept === 'all' || member.department_id === selectedDept
+      return matchesSearch && matchesDept
+    })
+  }, [members, debouncedSearch, selectedDept])
+
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearch(e.target.value)
+  }, [])
+
+  const handleDeptChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedDept(e.target.value)
+  }, [])
 
   return (
     <div className="space-y-3 lg:space-y-4">
@@ -52,7 +172,7 @@ export default function MemberList({ members, departments, canEdit }: MemberList
               type="text"
               placeholder="이름 또는 연락처 검색"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={handleSearchChange}
               className="w-full pl-9 lg:pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
             />
           </div>
@@ -61,7 +181,7 @@ export default function MemberList({ members, departments, canEdit }: MemberList
             {/* 부서 필터 */}
             <select
               value={selectedDept}
-              onChange={(e) => setSelectedDept(e.target.value)}
+              onChange={handleDeptChange}
               className="flex-1 lg:flex-none px-3 lg:px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
             >
               <option value="all">전체 부서</option>
@@ -104,36 +224,7 @@ export default function MemberList({ members, departments, canEdit }: MemberList
       {viewMode === 'grid' && (
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 lg:gap-4">
           {filteredMembers.map((member) => (
-            <Link
-              key={member.id}
-              href={`/members/${member.id}`}
-              className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100 active:shadow-md transition-shadow"
-            >
-              <div className="aspect-square bg-gray-100 relative">
-                {member.photo_url ? (
-                  <img
-                    src={member.photo_url}
-                    alt={member.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-200 to-gray-300">
-                    <span className="text-2xl lg:text-4xl font-bold text-gray-500">
-                      {member.name.charAt(0)}
-                    </span>
-                  </div>
-                )}
-                {!member.is_active && (
-                  <div className="absolute top-1 right-1 lg:top-2 lg:right-2 bg-gray-800/70 text-white text-[10px] lg:text-xs px-1.5 py-0.5 lg:px-2 lg:py-1 rounded">
-                    비활성
-                  </div>
-                )}
-              </div>
-              <div className="p-2 lg:p-3">
-                <p className="font-semibold text-gray-900 truncate text-xs lg:text-sm">{member.name}</p>
-                <p className="text-[10px] lg:text-sm text-gray-500 truncate">{member.departments?.name}</p>
-              </div>
-            </Link>
+            <MemberGridCard key={member.id} member={member} />
           ))}
         </div>
       )}
@@ -143,47 +234,7 @@ export default function MemberList({ members, departments, canEdit }: MemberList
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="divide-y divide-gray-100">
             {filteredMembers.map((member) => (
-              <Link
-                key={member.id}
-                href={`/members/${member.id}`}
-                className="flex items-center gap-3 p-3 lg:p-4 active:bg-gray-50 transition-colors"
-              >
-                <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-full overflow-hidden bg-gray-100 flex-shrink-0">
-                  {member.photo_url ? (
-                    <img
-                      src={member.photo_url}
-                      alt={member.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-200 to-gray-300">
-                      <span className="text-sm lg:text-base font-bold text-gray-500">
-                        {member.name.charAt(0)}
-                      </span>
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-gray-900 text-sm lg:text-base">{member.name}</p>
-                  <div className="flex items-center gap-1.5 text-xs lg:text-sm text-gray-500 mt-0.5">
-                    <span className="truncate">{member.departments?.name}</span>
-                    {member.phone && (
-                      <>
-                        <span className="hidden lg:inline">·</span>
-                        <span className="hidden lg:inline">{member.phone}</span>
-                      </>
-                    )}
-                  </div>
-                </div>
-                {!member.is_active && (
-                  <span className="text-[10px] lg:text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
-                    비활성
-                  </span>
-                )}
-                <svg className="w-4 h-4 lg:w-5 lg:h-5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </Link>
+              <MemberListItem key={member.id} member={member} />
             ))}
           </div>
         </div>
