@@ -13,12 +13,43 @@ interface Department {
   code: string
 }
 
+interface ExistingReport {
+  id: string
+  department_id: string
+  report_date: string
+  week_number: number | null
+  notes: string | null
+  meeting_title: string | null
+  meeting_location: string | null
+  attendees: string | null
+  main_content: string | null
+  application_notes: string | null
+  programs: Array<{
+    id: string
+    start_time: string
+    content: string
+    person_in_charge: string | null
+    order_index: number
+  }>
+  newcomers: Array<{
+    id: string
+    name: string
+    phone: string | null
+    birth_date: string | null
+    introducer: string | null
+    address: string | null
+    affiliation: string | null
+  }>
+}
+
 interface ReportFormProps {
   reportType: ReportType
   departments: Department[]
   defaultDate: string
   weekNumber: number
   authorId: string
+  editMode?: boolean
+  existingReport?: ExistingReport
 }
 
 interface Program {
@@ -73,6 +104,8 @@ export default function ReportForm({
   defaultDate,
   weekNumber,
   authorId,
+  editMode = false,
+  existingReport,
 }: ReportFormProps) {
   const router = useRouter()
   const supabase = createClient()
@@ -80,35 +113,66 @@ export default function ReportForm({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // 기존 데이터에서 notes 파싱
+  const parsedNotes = existingReport?.notes ? JSON.parse(existingReport.notes) : {}
+
   // 공통 필드
   const [form, setForm] = useState({
-    department_id: departments[0]?.id || '',
-    report_date: defaultDate,
+    department_id: existingReport?.department_id || departments[0]?.id || '',
+    report_date: existingReport?.report_date || defaultDate,
     // 주차 보고서 전용
-    sermon_title: '',
-    sermon_scripture: '',
+    sermon_title: parsedNotes.sermon_title || '',
+    sermon_scripture: parsedNotes.sermon_scripture || '',
     // 공통 (논의/기타)
-    discussion_notes: '',
-    other_notes: '',
+    discussion_notes: parsedNotes.discussion_notes || '',
+    other_notes: parsedNotes.other_notes || '',
     // 모임/교육 보고서 전용
-    meeting_title: '',
-    meeting_location: '',
-    attendees: '',
-    main_content: '',
-    application_notes: '',
+    meeting_title: existingReport?.meeting_title || '',
+    meeting_location: existingReport?.meeting_location || '',
+    attendees: existingReport?.attendees || '',
+    main_content: existingReport?.main_content || '',
+    application_notes: existingReport?.application_notes || '',
   })
 
-  const [programs, setPrograms] = useState<Program[]>([
-    { start_time: '13:30', end_time: '13:40', content: '찬양 및 기도', person_in_charge: '', note: '', order_index: 0 },
-    { start_time: '13:40', end_time: '14:00', content: '말씀', person_in_charge: '', note: '', order_index: 1 },
-    { start_time: '14:00', end_time: '14:10', content: '광고', person_in_charge: '', note: '', order_index: 2 },
-  ])
+  // 프로그램 초기화 (기존 데이터가 있으면 사용)
+  const initialPrograms: Program[] = existingReport?.programs?.length
+    ? existingReport.programs.map(p => ({
+        id: p.id,
+        start_time: p.start_time?.slice(0, 5) || '',
+        end_time: '',
+        content: p.content || '',
+        person_in_charge: p.person_in_charge || '',
+        note: '',
+        order_index: p.order_index,
+      }))
+    : [
+        { start_time: '13:30', end_time: '13:40', content: '찬양 및 기도', person_in_charge: '', note: '', order_index: 0 },
+        { start_time: '13:40', end_time: '14:00', content: '말씀', person_in_charge: '', note: '', order_index: 1 },
+        { start_time: '14:00', end_time: '14:10', content: '광고', person_in_charge: '', note: '', order_index: 2 },
+      ]
 
-  const [cellAttendance, setCellAttendance] = useState<CellAttendance[]>([
-    { cell_name: '', registered: 0, worship: 0, meeting: 0, note: '' },
-  ])
+  const [programs, setPrograms] = useState<Program[]>(initialPrograms)
 
-  const [newcomers, setNewcomers] = useState<Newcomer[]>([])
+  // 셀 출결 초기화
+  const initialCellAttendance: CellAttendance[] = parsedNotes.cell_attendance?.length
+    ? parsedNotes.cell_attendance
+    : [{ cell_name: '', registered: 0, worship: 0, meeting: 0, note: '' }]
+
+  const [cellAttendance, setCellAttendance] = useState<CellAttendance[]>(initialCellAttendance)
+
+  // 새신자 초기화
+  const initialNewcomers: Newcomer[] = existingReport?.newcomers?.length
+    ? existingReport.newcomers.map(n => ({
+        name: n.name,
+        phone: n.phone || '',
+        birth_date: n.birth_date || '',
+        introducer: n.introducer || '',
+        address: n.address || '',
+        affiliation: n.affiliation || '',
+      }))
+    : []
+
+  const [newcomers, setNewcomers] = useState<Newcomer[]>(initialNewcomers)
 
   const [attendanceSummary, setAttendanceSummary] = useState({
     total: 0,
@@ -215,38 +279,62 @@ export default function ReportForm({
         ? (cellAttendance.reduce((sum, c) => sum + c.meeting, 0) || attendanceSummary.meeting)
         : 0
 
-      const { data: report, error: reportError } = await supabase
-        .from('weekly_reports')
-        .insert({
-          report_type: reportType,
-          department_id: form.department_id,
-          report_date: form.report_date,
-          week_number: reportType === 'weekly' ? weekNumber : null,
-          year: new Date(form.report_date).getFullYear(),
-          author_id: authorId,
-          total_registered: totalRegistered,
-          worship_attendance: totalWorship,
-          meeting_attendance: totalMeeting,
-          // 모임/교육 전용 필드
-          meeting_title: reportType !== 'weekly' ? form.meeting_title : null,
-          meeting_location: reportType !== 'weekly' ? form.meeting_location : null,
-          attendees: reportType !== 'weekly' ? form.attendees : null,
-          main_content: reportType !== 'weekly' ? form.main_content : null,
-          application_notes: reportType === 'education' ? form.application_notes : null,
-          notes: JSON.stringify({
-            sermon_title: form.sermon_title,
-            sermon_scripture: form.sermon_scripture,
-            discussion_notes: form.discussion_notes,
-            other_notes: form.other_notes,
-            cell_attendance: reportType === 'weekly' ? cellAttendance : [],
-          }),
-          status: isDraft ? 'draft' : 'submitted',
-          submitted_at: isDraft ? null : new Date().toISOString(),
-        })
-        .select()
-        .single()
+      const reportData = {
+        report_type: reportType,
+        department_id: form.department_id,
+        report_date: form.report_date,
+        week_number: reportType === 'weekly' ? weekNumber : null,
+        year: new Date(form.report_date).getFullYear(),
+        total_registered: totalRegistered,
+        worship_attendance: totalWorship,
+        meeting_attendance: totalMeeting,
+        // 모임/교육 전용 필드
+        meeting_title: reportType !== 'weekly' ? form.meeting_title : null,
+        meeting_location: reportType !== 'weekly' ? form.meeting_location : null,
+        attendees: reportType !== 'weekly' ? form.attendees : null,
+        main_content: reportType !== 'weekly' ? form.main_content : null,
+        application_notes: reportType === 'education' ? form.application_notes : null,
+        notes: JSON.stringify({
+          sermon_title: form.sermon_title,
+          sermon_scripture: form.sermon_scripture,
+          discussion_notes: form.discussion_notes,
+          other_notes: form.other_notes,
+          cell_attendance: reportType === 'weekly' ? cellAttendance : [],
+        }),
+        status: isDraft ? 'draft' : 'submitted',
+        submitted_at: isDraft ? null : new Date().toISOString(),
+      }
 
-      if (reportError) throw reportError
+      let reportId: string
+
+      if (editMode && existingReport) {
+        // 수정 모드
+        const { error: updateError } = await supabase
+          .from('weekly_reports')
+          .update(reportData)
+          .eq('id', existingReport.id)
+
+        if (updateError) throw updateError
+        reportId = existingReport.id
+
+        // 기존 프로그램 삭제 후 재삽입
+        await supabase.from('report_programs').delete().eq('report_id', reportId)
+
+        // 기존 새신자 삭제 후 재삽입 (주차 보고서만)
+        if (reportType === 'weekly') {
+          await supabase.from('newcomers').delete().eq('report_id', reportId)
+        }
+      } else {
+        // 신규 생성
+        const { data: report, error: reportError } = await supabase
+          .from('weekly_reports')
+          .insert({ ...reportData, author_id: authorId })
+          .select()
+          .single()
+
+        if (reportError) throw reportError
+        reportId = report.id
+      }
 
       // 프로그램 저장
       if (programs.length > 0) {
@@ -254,7 +342,7 @@ export default function ReportForm({
           .from('report_programs')
           .insert(
             programs.map((p, i) => ({
-              report_id: report.id,
+              report_id: reportId,
               start_time: p.start_time || '00:00',
               content: `${p.content}${p.note ? ` [${p.note}]` : ''}`,
               person_in_charge: p.person_in_charge,
@@ -271,7 +359,7 @@ export default function ReportForm({
           .from('newcomers')
           .insert(
             newcomers.filter(n => n.name).map(n => ({
-              report_id: report.id,
+              report_id: reportId,
               name: n.name,
               phone: n.phone || null,
               birth_date: n.birth_date || null,
@@ -285,11 +373,11 @@ export default function ReportForm({
         if (newcomerError) throw newcomerError
       }
 
-      // 제출 시 알림 생성
-      if (!isDraft) {
+      // 제출 시 알림 생성 (신규 제출만)
+      if (!isDraft && !editMode) {
         const selectedDept = departments.find(d => d.id === form.department_id)
         await createApprovalNotification(supabase, {
-          reportId: report.id,
+          reportId: reportId,
           fromStatus: 'draft',
           toStatus: 'submitted',
           departmentName: selectedDept?.name || '',

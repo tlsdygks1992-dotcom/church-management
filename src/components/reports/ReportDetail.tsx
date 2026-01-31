@@ -51,6 +51,10 @@ export default function ReportDetail({
   const [comment, setComment] = useState('')
   const [showApprovalModal, setShowApprovalModal] = useState(false)
   const [approvalAction, setApprovalAction] = useState<'approve' | 'reject'>('approve')
+  const [showCancelModal, setShowCancelModal] = useState(false)
+
+  // 작성자이고 제출된 상태일 때만 취소 가능
+  const canCancelSubmission = currentUser?.id === report.author_id && report.status === 'submitted'
 
   const reportType = report.report_type || 'weekly'
   const typeConfig = REPORT_TYPE_CONFIG[reportType]
@@ -201,6 +205,40 @@ export default function ReportDetail({
     setShowPrintOptions(false)
   }, [report, programs, newcomers, getDeptDisplayName, reportType])
 
+  // 제출 취소 처리
+  const handleCancelSubmission = async () => {
+    if (!canCancelSubmission || !currentUser) return
+    setLoading(true)
+    setShowCancelModal(false)
+
+    try {
+      // 상태를 draft로 변경
+      await supabase
+        .from('weekly_reports')
+        .update({
+          status: 'draft',
+          submitted_at: null,
+        })
+        .eq('id', report.id)
+
+      // 결재 이력 추가
+      await supabase.from('approval_history').insert({
+        report_id: report.id,
+        approver_id: currentUser.id,
+        from_status: 'submitted',
+        to_status: 'draft',
+        comment: '제출 취소',
+      })
+
+      router.refresh()
+    } catch (error) {
+      console.error('Failed to cancel submission:', error)
+      alert('제출 취소 중 오류가 발생했습니다.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleApproval = async () => {
     if (!canApprove || !currentUser) return
     setLoading(true)
@@ -303,6 +341,30 @@ export default function ReportDetail({
           </div>
 
           <div className="flex items-center gap-1">
+            {/* 제출 취소 버튼 (작성자 + submitted 상태일 때만) */}
+            {canCancelSubmission && (
+              <button
+                onClick={() => setShowCancelModal(true)}
+                className="p-2.5 bg-orange-50 text-orange-600 rounded-xl hover:bg-orange-100 transition-colors"
+                title="제출 취소"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                </svg>
+              </button>
+            )}
+            {/* 수정 버튼 (작성자 + draft 상태일 때만) */}
+            {currentUser?.id === report.author_id && report.status === 'draft' && (
+              <button
+                onClick={() => router.push(`/reports/${report.id}/edit`)}
+                className="p-2.5 bg-green-50 text-green-600 rounded-xl hover:bg-green-100 transition-colors"
+                title="수정"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </button>
+            )}
             <button
               onClick={() => setShowPrintOptions(true)}
               className="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-colors"
@@ -695,6 +757,42 @@ export default function ReportDetail({
                 }`}
               >
                 {loading ? '처리 중...' : approvalAction === 'approve' ? '승인' : '반려'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 제출 취소 확인 모달 */}
+      {showCancelModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5 animate-slide-up">
+            <div className="text-center">
+              <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">제출 취소</h3>
+              <p className="text-gray-500 text-sm mb-6">
+                보고서 제출을 취소하시겠습니까?<br />
+                <span className="text-gray-400">취소 후 수정하여 다시 제출할 수 있습니다.</span>
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowCancelModal(false)}
+                disabled={loading}
+                className="flex-1 py-3 border border-gray-200 rounded-xl font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                닫기
+              </button>
+              <button
+                onClick={handleCancelSubmission}
+                disabled={loading}
+                className="flex-1 py-3 bg-orange-600 text-white rounded-xl font-medium hover:bg-orange-700 transition-colors disabled:opacity-50"
+              >
+                {loading ? '처리 중...' : '제출 취소'}
               </button>
             </div>
           </div>
