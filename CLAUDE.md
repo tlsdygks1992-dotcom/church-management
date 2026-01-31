@@ -3,7 +3,7 @@
 ## 프로젝트 개요
 - **앱 이름**: 청파중앙교회 교육위원회 관리 시스템
 - **기술 스택**: Next.js 16.1.6, Supabase, TypeScript, Tailwind CSS v4
-- **배포**: Netlify (https://church-management-cpcc.netlify.app)
+- **배포**: Vercel (https://church-eight-delta.vercel.app)
 - **GitHub**: https://github.com/onapond/church-management
 
 ## 시작 시 필수 확인 문서
@@ -83,10 +83,24 @@ src/
 - 모바일 우선 설계
 
 ## 배포 프로세스
-1. `git add` & `git commit`
-2. `git push origin main`
-3. Netlify 자동 빌드 (1-2분)
-4. https://church-management-cpcc.netlify.app 에서 확인
+
+### Vercel 배포 (현재 사용)
+```bash
+# 1. 코드 변경 후 커밋
+git add .
+git commit -m "커밋 메시지"
+git push origin main
+
+# 2. Vercel에 배포
+npx vercel --prod
+```
+
+- **프로덕션 URL**: https://church-eight-delta.vercel.app
+- **Vercel 대시보드**: https://vercel.com/onaponds-projects/church
+
+### 참고
+- GitHub 자동 배포 미연결 (수동 배포 필요)
+- 이전 Netlify 배포는 무료 플랜 한도 초과로 중단됨
 
 ## 주요 테이블
 - `users`: 사용자 (역할: super_admin, president, accountant, team_leader, member)
@@ -99,8 +113,8 @@ src/
 
 ## 자주 사용하는 명령어
 ```bash
-npm run dev          # 개발 서버
+npm run dev          # 개발 서버 (http://localhost:3000)
 npm run build        # 빌드
 npx tsc --noEmit     # 타입 체크
-git push origin main # 배포
+npx vercel --prod    # Vercel 프로덕션 배포
 ```
