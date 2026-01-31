@@ -70,10 +70,17 @@ function AuthForm() {
     })
 
     if (error) {
+      console.error('Signup error:', error)
       if (error.message.includes('already registered')) {
         setError('이미 가입된 이메일입니다.')
+      } else if (error.message.includes('Email rate limit')) {
+        setError('너무 많은 요청이 발생했습니다. 잠시 후 다시 시도해주세요.')
+      } else if (error.message.includes('Invalid email')) {
+        setError('유효하지 않은 이메일 주소입니다.')
+      } else if (error.message.includes('Password')) {
+        setError('비밀번호가 요구 조건을 충족하지 않습니다.')
       } else {
-        setError('회원가입에 실패했습니다. 다시 시도해주세요.')
+        setError(`회원가입 실패: ${error.message}`)
       }
       setLoading(false)
       return
