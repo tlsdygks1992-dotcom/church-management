@@ -1,9 +1,21 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { createApprovalNotification } from '@/lib/notifications'
+import dynamic from 'next/dynamic'
+
+// 클라이언트 전용 컴포넌트로 동적 import
+const RichTextEditor = dynamic(() => import('@/components/ui/RichTextEditor'), {
+  ssr: false,
+  loading: () => (
+    <div className="border border-gray-200 rounded-xl overflow-hidden">
+      <div className="h-10 bg-gray-50 border-b border-gray-200" />
+      <div className="min-h-[120px] p-3 text-gray-400 text-sm">로딩 중...</div>
+    </div>
+  ),
+})
 
 type ReportType = 'weekly' | 'meeting' | 'education'
 
@@ -180,12 +192,6 @@ export default function ReportForm({
     meeting: 0,
   })
 
-  // 텍스트 영역 자동 높이 조절
-  const autoResize = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const textarea = e.target
-    textarea.style.height = 'auto'
-    textarea.style.height = `${textarea.scrollHeight}px`
-  }, [])
 
   // 부서 변경 시 출결 데이터 로드 (주차 보고서만)
   useEffect(() => {
@@ -617,16 +623,11 @@ export default function ReportForm({
           <label className="block font-semibold text-gray-900 mb-2 text-sm md:text-base">
             {reportType === 'meeting' ? '주요내용' : '교육내용'}
           </label>
-          <textarea
+          <RichTextEditor
             value={form.main_content}
-            onChange={(e) => {
-              setForm({ ...form, main_content: e.target.value })
-              autoResize(e)
-            }}
-            onFocus={(e) => autoResize(e as unknown as React.ChangeEvent<HTMLTextAreaElement>)}
-            rows={4}
-            placeholder={reportType === 'meeting' ? '• 주요 내용을 입력하세요' : '• 교육 내용을 입력하세요'}
-            className="w-full px-3 md:px-4 py-2.5 md:py-3 border border-gray-200 rounded-xl text-sm resize-none overflow-hidden"
+            onChange={(value) => setForm({ ...form, main_content: value })}
+            placeholder={reportType === 'meeting' ? '주요 내용을 입력하세요' : '교육 내용을 입력하세요'}
+            minHeight="150px"
           />
         </div>
       )}
@@ -834,33 +835,23 @@ export default function ReportForm({
             <label className="block font-semibold text-gray-900 mb-2 text-sm md:text-base">
               {reportType === 'education' ? '적용점' : '논의(특이)사항'}
             </label>
-            <textarea
+            <RichTextEditor
               value={reportType === 'education' ? form.application_notes : form.discussion_notes}
-              onChange={(e) => {
-                setForm({
-                  ...form,
-                  [reportType === 'education' ? 'application_notes' : 'discussion_notes']: e.target.value
-                })
-                autoResize(e)
-              }}
-              onFocus={(e) => autoResize(e as unknown as React.ChangeEvent<HTMLTextAreaElement>)}
-              rows={4}
-              placeholder={reportType === 'education' ? '• 적용점을 입력하세요' : '• 논의사항을 입력하세요'}
-              className="w-full px-3 md:px-4 py-2.5 md:py-3 border border-gray-200 rounded-xl text-sm resize-none overflow-hidden"
+              onChange={(value) => setForm({
+                ...form,
+                [reportType === 'education' ? 'application_notes' : 'discussion_notes']: value
+              })}
+              placeholder={reportType === 'education' ? '적용점을 입력하세요' : '논의사항을 입력하세요'}
+              minHeight="120px"
             />
           </div>
           <div>
             <label className="block font-semibold text-gray-900 mb-2 text-sm md:text-base">기타사항</label>
-            <textarea
+            <RichTextEditor
               value={form.other_notes}
-              onChange={(e) => {
-                setForm({ ...form, other_notes: e.target.value })
-                autoResize(e)
-              }}
-              onFocus={(e) => autoResize(e as unknown as React.ChangeEvent<HTMLTextAreaElement>)}
-              rows={4}
-              placeholder="• 기타사항을 입력하세요"
-              className="w-full px-3 md:px-4 py-2.5 md:py-3 border border-gray-200 rounded-xl text-sm resize-none overflow-hidden"
+              onChange={(value) => setForm({ ...form, other_notes: value })}
+              placeholder="기타사항을 입력하세요"
+              minHeight="120px"
             />
           </div>
         </div>
