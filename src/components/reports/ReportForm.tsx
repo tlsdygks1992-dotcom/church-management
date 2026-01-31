@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { createApprovalNotification } from '@/lib/notifications'
@@ -179,6 +179,13 @@ export default function ReportForm({
     worship: 0,
     meeting: 0,
   })
+
+  // 텍스트 영역 자동 높이 조절
+  const autoResize = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const textarea = e.target
+    textarea.style.height = 'auto'
+    textarea.style.height = `${textarea.scrollHeight}px`
+  }, [])
 
   // 부서 변경 시 출결 데이터 로드 (주차 보고서만)
   useEffect(() => {
@@ -612,10 +619,14 @@ export default function ReportForm({
           </label>
           <textarea
             value={form.main_content}
-            onChange={(e) => setForm({ ...form, main_content: e.target.value })}
+            onChange={(e) => {
+              setForm({ ...form, main_content: e.target.value })
+              autoResize(e)
+            }}
+            onFocus={(e) => autoResize(e as unknown as React.ChangeEvent<HTMLTextAreaElement>)}
             rows={4}
             placeholder={reportType === 'meeting' ? '• 주요 내용을 입력하세요' : '• 교육 내용을 입력하세요'}
-            className="w-full px-3 md:px-4 py-2.5 md:py-3 border border-gray-200 rounded-xl text-sm resize-none"
+            className="w-full px-3 md:px-4 py-2.5 md:py-3 border border-gray-200 rounded-xl text-sm resize-none overflow-hidden"
           />
         </div>
       )}
@@ -825,23 +836,31 @@ export default function ReportForm({
             </label>
             <textarea
               value={reportType === 'education' ? form.application_notes : form.discussion_notes}
-              onChange={(e) => setForm({
-                ...form,
-                [reportType === 'education' ? 'application_notes' : 'discussion_notes']: e.target.value
-              })}
+              onChange={(e) => {
+                setForm({
+                  ...form,
+                  [reportType === 'education' ? 'application_notes' : 'discussion_notes']: e.target.value
+                })
+                autoResize(e)
+              }}
+              onFocus={(e) => autoResize(e as unknown as React.ChangeEvent<HTMLTextAreaElement>)}
               rows={4}
               placeholder={reportType === 'education' ? '• 적용점을 입력하세요' : '• 논의사항을 입력하세요'}
-              className="w-full px-3 md:px-4 py-2.5 md:py-3 border border-gray-200 rounded-xl text-sm resize-none"
+              className="w-full px-3 md:px-4 py-2.5 md:py-3 border border-gray-200 rounded-xl text-sm resize-none overflow-hidden"
             />
           </div>
           <div>
             <label className="block font-semibold text-gray-900 mb-2 text-sm md:text-base">기타사항</label>
             <textarea
               value={form.other_notes}
-              onChange={(e) => setForm({ ...form, other_notes: e.target.value })}
+              onChange={(e) => {
+                setForm({ ...form, other_notes: e.target.value })
+                autoResize(e)
+              }}
+              onFocus={(e) => autoResize(e as unknown as React.ChangeEvent<HTMLTextAreaElement>)}
               rows={4}
               placeholder="• 기타사항을 입력하세요"
-              className="w-full px-3 md:px-4 py-2.5 md:py-3 border border-gray-200 rounded-xl text-sm resize-none"
+              className="w-full px-3 md:px-4 py-2.5 md:py-3 border border-gray-200 rounded-xl text-sm resize-none overflow-hidden"
             />
           </div>
         </div>
