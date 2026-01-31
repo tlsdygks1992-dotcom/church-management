@@ -60,7 +60,58 @@
 
 ---
 
-## 작업 내역 (2026-01-31)
+## 작업 내역 (2026-01-31) - 오후 세션
+
+### 완료된 작업
+
+#### 1. 회원가입 이메일 Rate Limit 문제 해결
+- **문제**: Supabase 무료 플랜에서 이메일 발송 제한 (2 emails/hour)
+- **증상**: "Email rate limit exceeded" 오류로 회원가입 실패
+- **해결**: Supabase Dashboard → Authentication → Providers → Email → **Confirm email OFF**
+- 이메일 확인 없이 가입 가능, 관리자 승인(`is_active`) 시스템으로 보안 유지
+
+#### 2. 사용자 관리 페이지 개선 (`src/components/users/UserManagement.tsx`)
+
+**저장 버튼 기능 추가**:
+- 기존: 부서/역할 변경 시 즉시 자동 저장 (실패해도 피드백 없음)
+- 변경: 로컬 상태에 먼저 저장 → "저장" 버튼 클릭 시 DB 반영
+- 변경된 필드는 파란색 하이라이트로 표시
+- 저장 성공/실패 메시지 표시
+
+**역할 enum 값 수정**:
+| 잘못된 값 | 올바른 값 (DB enum) |
+|----------|-------------------|
+| leader | team_leader |
+| manager | accountant |
+| pastor | (제거) |
+
+**삭제 기능 확장**:
+- 기존: 승인 대기 사용자만 삭제 가능
+- 변경: 모든 사용자 삭제 가능
+- 삭제 확인 모달에 사용자 이름 표시
+- Optimistic update로 삭제 시 즉시 UI 반영
+
+#### 3. 로그인 페이지 에러 메시지 개선 (`src/app/(auth)/login/page.tsx`)
+- 회원가입 실패 시 상세 에러 메시지 표시
+- 처리하는 에러 유형:
+  - `already registered` → "이미 가입된 이메일입니다."
+  - `Email rate limit` → "너무 많은 요청이 발생했습니다."
+  - `Invalid email` → "유효하지 않은 이메일 주소입니다."
+  - `Password` → "비밀번호가 요구 조건을 충족하지 않습니다."
+  - 기타 → 실제 Supabase 에러 메시지 표시
+
+### 수정된 파일
+- `src/components/users/UserManagement.tsx` - 저장 버튼, 삭제 기능, 역할 enum 수정
+- `src/app/(auth)/login/page.tsx` - 상세 에러 메시지
+
+### 커밋
+```
+9e0b0f3 Improve user management with save button and delete functionality
+```
+
+---
+
+## 작업 내역 (2026-01-31) - 오전 세션
 
 ### 완료된 작업
 
@@ -223,6 +274,11 @@
 4. **보고서 인쇄 기능 개선** - 모임/교육 보고서 템플릿 최적화
 5. **출석 통계 상세화** - 월별/분기별 추이, 개인별 이력
 6. **모바일 UX 개선** - 터치 제스처, 오프라인 모드
+
+### 참고 사항
+- **Supabase 이메일 확인 OFF**: 회원가입 시 이메일 발송 안 함 (Rate limit 문제 해결)
+- **사용자 역할 enum**: `super_admin`, `president`, `accountant`, `team_leader`, `member`
+- **사용자 승인 필드**: `is_active` (is_approved 아님)
 
 ---
 
