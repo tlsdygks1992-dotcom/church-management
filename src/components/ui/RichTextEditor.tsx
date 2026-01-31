@@ -5,7 +5,67 @@ import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
 import Placeholder from '@tiptap/extension-placeholder'
-import { useEffect } from 'react'
+import TextStyle from '@tiptap/extension-text-style'
+import { Extension } from '@tiptap/core'
+import { useEffect, useState } from 'react'
+
+// 커스텀 폰트 크기 확장
+const FontSize = Extension.create({
+  name: 'fontSize',
+
+  addOptions() {
+    return {
+      types: ['textStyle'],
+    }
+  },
+
+  addGlobalAttributes() {
+    return [
+      {
+        types: this.options.types,
+        attributes: {
+          fontSize: {
+            default: null,
+            parseHTML: element => element.style.fontSize?.replace(/['"]+/g, ''),
+            renderHTML: attributes => {
+              if (!attributes.fontSize) {
+                return {}
+              }
+              return {
+                style: `font-size: ${attributes.fontSize}`,
+              }
+            },
+          },
+        },
+      },
+    ]
+  },
+
+  addCommands() {
+    return {
+      setFontSize: (fontSize: string) => ({ chain }: { chain: () => any }) => {
+        return chain().setMark('textStyle', { fontSize }).run()
+      },
+      unsetFontSize: () => ({ chain }: { chain: () => any }) => {
+        return chain().setMark('textStyle', { fontSize: null }).removeEmptyTextStyle().run()
+      },
+    }
+  },
+})
+
+// 폰트 크기 옵션
+const FONT_SIZES = [
+  { label: '10pt', value: '10pt' },
+  { label: '11pt', value: '11pt' },
+  { label: '12pt', value: '12pt' },
+  { label: '14pt', value: '14pt' },
+  { label: '16pt', value: '16pt' },
+  { label: '18pt', value: '18pt' },
+  { label: '20pt', value: '20pt' },
+  { label: '24pt', value: '24pt' },
+  { label: '28pt', value: '28pt' },
+  { label: '32pt', value: '32pt' },
+]
 
 interface RichTextEditorProps {
   value: string
@@ -20,6 +80,8 @@ export default function RichTextEditor({
   placeholder = '내용을 입력하세요',
   minHeight = '120px',
 }: RichTextEditorProps) {
+  const [showFontSizeMenu, setShowFontSizeMenu] = useState(false)
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -28,6 +90,8 @@ export default function RichTextEditor({
         },
       }),
       Underline,
+      TextStyle,
+      FontSize,
       TextAlign.configure({
         types: ['heading', 'paragraph'],
       }),
@@ -54,6 +118,15 @@ export default function RichTextEditor({
     }
   }, [value, editor])
 
+  // 외부 클릭 시 메뉴 닫기
+  useEffect(() => {
+    const handleClickOutside = () => setShowFontSizeMenu(false)
+    if (showFontSizeMenu) {
+      document.addEventListener('click', handleClickOutside)
+      return () => document.removeEventListener('click', handleClickOutside)
+    }
+  }, [showFontSizeMenu])
+
   if (!editor) {
     return (
       <div className="border border-gray-200 rounded-xl overflow-hidden">
@@ -65,10 +138,60 @@ export default function RichTextEditor({
     )
   }
 
+  // 현재 선택된 폰트 크기 가져오기
+  const getCurrentFontSize = () => {
+    const attrs = editor.getAttributes('textStyle')
+    return attrs.fontSize || '14pt'
+  }
+
+  const setFontSize = (size: string) => {
+    ;(editor.chain().focus() as any).setFontSize(size).run()
+    setShowFontSizeMenu(false)
+  }
+
   return (
     <div className="border border-gray-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent">
       {/* 툴바 */}
       <div className="flex flex-wrap items-center gap-0.5 p-1.5 bg-gray-50 border-b border-gray-200">
+        {/* 폰트 크기 */}
+        <div className="relative px-1">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              setShowFontSizeMenu(!showFontSizeMenu)
+            }}
+            className="flex items-center gap-1 px-2 py-1 text-sm text-gray-700 bg-white border border-gray-200 rounded hover:bg-gray-50 min-w-[70px]"
+            title="글자 크기"
+          >
+            <span>{getCurrentFontSize()}</span>
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {showFontSizeMenu && (
+            <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 min-w-[80px]">
+              {FONT_SIZES.map((size) => (
+                <button
+                  key={size.value}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setFontSize(size.value)
+                  }}
+                  className={`w-full px-3 py-1.5 text-left text-sm hover:bg-gray-100 ${
+                    getCurrentFontSize() === size.value ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
+                  }`}
+                >
+                  {size.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="w-px h-5 bg-gray-300 mx-1" />
+
         {/* 텍스트 스타일 */}
         <div className="flex items-center gap-0.5 px-1">
           <ToolbarButton
