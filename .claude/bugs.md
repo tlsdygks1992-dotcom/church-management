@@ -56,13 +56,25 @@
 - **해결**: `nul` 파일 제외하고 특정 파일만 `git add` 실행
 - **관련 파일**: 프로젝트 루트의 `nul` 파일 (삭제 불가, 무시 처리)
 
-#### 6. 알림 시스템 역할 매핑 오류
+#### 7. 알림 시스템 역할 매핑 오류
 - **증상**: 결재 알림이 잘못된 사용자에게 전송될 수 있음
 - **원인**: 기존 역할명과 DB 역할명 불일치 (manager vs accountant)
 - **해결**:
   - `src/lib/notifications.ts`에서 STATUS_TO_RECIPIENT_ROLE 매핑 수정
   - 부장 역할을 'accountant'로 매핑 (DB 스키마 기준)
 - **관련 파일**: `src/lib/notifications.ts`
+
+#### 8. Tiptap TextStyle import 오류
+- **증상**: `npm run build` 시 "Export default doesn't exist in target module" 오류
+- **원인**: `@tiptap/extension-text-style` 패키지는 named export 사용
+- **해결**:
+  ```typescript
+  // 변경 전
+  import TextStyle from '@tiptap/extension-text-style'
+  // 변경 후
+  import { TextStyle } from '@tiptap/extension-text-style'
+  ```
+- **관련 파일**: `src/components/ui/RichTextEditor.tsx`
 
 ---
 

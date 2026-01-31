@@ -136,11 +136,31 @@
 - `stats/page.tsx` - 콜백 파라미터 타입 명시
 - `ReportForm.tsx` - attendance 배열 콜백 타입 명시
 
-#### 6. Netlify 배포 설정 완료
-- GitHub 저장소 (onapond/church-management) 연결 확인
-- 자동 배포 활성화 - main 브랜치 푸시 시 자동 빌드/배포
-- 배포 상태: `ready` (정상 작동)
-- 라이브 URL: https://church-management-cpcc.netlify.app
+#### 6. Vercel 호스팅 이전
+- Netlify 무료 플랜 한도 초과로 503 오류 발생
+- Vercel로 호스팅 이전 완료
+- 배포 명령어: `npx vercel --prod`
+- 프로덕션 URL: https://church-eight-delta.vercel.app
+
+#### 7. 보고서 제출 취소 및 수정 기능
+- **신규 파일**: `src/app/(dashboard)/reports/[id]/edit/page.tsx`
+- **수정 파일**: `src/components/reports/ReportDetail.tsx`, `src/components/reports/ReportForm.tsx`
+- 기능:
+  - 제출된 보고서 취소 → draft 상태로 복귀
+  - draft 상태 보고서 수정 페이지 이동
+  - 수정 모드에서 기존 데이터 로드
+  - editMode prop으로 생성/수정 분기 처리
+
+#### 8. 리치 텍스트 에디터 구현 (Tiptap)
+- **신규 파일**: `src/components/ui/RichTextEditor.tsx`
+- **의존성**: `@tiptap/react`, `@tiptap/starter-kit`, `@tiptap/extension-underline`, `@tiptap/extension-text-align`, `@tiptap/extension-placeholder`, `@tiptap/extension-text-style`, `@floating-ui/dom`
+- 기능:
+  - 텍스트 서식: 굵게(B), 기울임(I), 밑줄(U), 취소선(S)
+  - 제목: H1, H2
+  - 리스트: 번호/글머리 기호
+  - 정렬: 왼쪽/가운데/오른쪽
+  - **폰트 크기 조절** (10pt ~ 32pt) - 커스텀 FontSize Extension 구현
+- ReportForm에서 주요내용/교육내용 필드에 적용
 
 ---
 
