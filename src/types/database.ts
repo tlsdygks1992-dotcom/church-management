@@ -2,7 +2,7 @@
 // 실제 프로젝트에서는 `npx supabase gen types typescript` 명령으로 자동 생성 권장
 
 export type UserRole = 'super_admin' | 'president' | 'accountant' | 'team_leader' | 'member'
-export type DepartmentCode = 'ck' | 'cu_worship' | 'youth' | 'cu1' | 'cu2' | 'leader'
+export type DepartmentCode = 'ck' | 'cu' | 'cu_worship' | 'youth' | 'cu1' | 'cu2' | 'leader'
 export type ReportType = 'weekly' | 'meeting' | 'education'
 export type ApprovalStatus =
   | 'draft'
