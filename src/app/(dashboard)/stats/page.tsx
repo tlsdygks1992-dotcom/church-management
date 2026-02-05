@@ -87,48 +87,69 @@ export default function StatsPage() {
 
     const startDateStr = startDate.toISOString().split('T')[0]
 
-    // 부서별 통계
-    await loadDepartmentStats(startDateStr)
-
-    // 주간 추이
-    await loadWeeklyTrend(startDateStr)
+    // 부서별 통계 & 주간 추이 병렬 로드
+    await Promise.all([
+      loadDepartmentStats(startDateStr),
+      loadWeeklyTrend(startDateStr)
+    ])
 
     setLoading(false)
   }
 
   const loadDepartmentStats = async (startDate: string) => {
-    // 모든 부서의 멤버 수 조회
-    const { data: allMembers } = await supabase
-      .from('members')
-      .select('id, department_id')
-      .eq('is_active', true)
+    // member_departments를 통해 부서별 멤버 조회
+    const { data: memberDepts } = await supabase
+      .from('member_departments')
+      .select('member_id, department_id, members!inner(id, is_active)')
+      .eq('members.is_active', true)
+
+    // 활성 멤버만 필터링
+    const activeMemberDepts = (memberDepts || []).filter((md: any) => md.members?.is_active)
 
     // 출결 기록 조회
-    const attendanceQuery = supabase
+    const { data: attendance } = await supabase
       .from('attendance_records')
-      .select('member_id, attendance_type, is_present, attendance_date, members!inner(department_id)')
+      .select('member_id, attendance_type, is_present, attendance_date')
       .gte('attendance_date', startDate)
       .eq('is_present', true)
 
-    const { data: attendance } = await attendanceQuery
+    // 멤버ID -> 부서ID 매핑 (한 멤버가 여러 부서에 속할 수 있음)
+    const memberToDepts = new Map<string, Set<string>>()
+    activeMemberDepts.forEach((md: { member_id: string; department_id: string }) => {
+      if (!memberToDepts.has(md.member_id)) {
+        memberToDepts.set(md.member_id, new Set())
+      }
+      memberToDepts.get(md.member_id)!.add(md.department_id)
+    })
+
+    // 부서별 멤버 수 미리 계산 (O(n) 대신 O(n²) 회피)
+    const deptMemberCounts = new Map<string, number>()
+    activeMemberDepts.forEach((md: { member_id: string; department_id: string }) => {
+      deptMemberCounts.set(md.department_id, (deptMemberCounts.get(md.department_id) || 0) + 1)
+    })
 
     // 부서별 집계
     const deptMap = new Map<string, { worship: number; meeting: number; total: number }>()
 
     departments.forEach(dept => {
-      const memberCount = (allMembers || []).filter((m: { id: string; department_id: string }) => m.department_id === dept.id).length
+      const memberCount = deptMemberCounts.get(dept.id) || 0
       deptMap.set(dept.id, { worship: 0, meeting: 0, total: memberCount })
     })
 
-    ;(attendance || []).forEach((record: any) => {
-      const deptId = record.members?.department_id
-      if (deptId && deptMap.has(deptId)) {
-        const stats = deptMap.get(deptId)!
-        if (record.attendance_type === 'worship') {
-          stats.worship++
-        } else if (record.attendance_type === 'meeting') {
-          stats.meeting++
-        }
+    // 출결 기록을 부서별로 집계 (한 멤버의 출석은 소속된 모든 부서에 반영)
+    ;(attendance || []).forEach((record: { member_id: string; attendance_type: string }) => {
+      const deptIds = memberToDepts.get(record.member_id)
+      if (deptIds) {
+        deptIds.forEach(deptId => {
+          if (deptMap.has(deptId)) {
+            const stats = deptMap.get(deptId)!
+            if (record.attendance_type === 'worship') {
+              stats.worship++
+            } else if (record.attendance_type === 'meeting') {
+              stats.meeting++
+            }
+          }
+        })
       }
     })
 
@@ -153,22 +174,27 @@ export default function StatsPage() {
   }
 
   const loadWeeklyTrend = async (startDate: string) => {
+    let memberIds: string[] = []
+
+    if (selectedDept !== 'all') {
+      // member_departments를 통해 선택된 부서의 멤버 조회
+      const { data: memberDepts } = await supabase
+        .from('member_departments')
+        .select('member_id')
+        .eq('department_id', selectedDept)
+
+      const ids = (memberDepts || []).map((md: { member_id: string }) => md.member_id)
+      memberIds = [...new Set(ids)] as string[]
+    }
+
     let query = supabase
       .from('attendance_records')
       .select('attendance_date, attendance_type, is_present, member_id')
       .gte('attendance_date', startDate)
       .eq('is_present', true)
 
-    if (selectedDept !== 'all') {
-      // 선택된 부서의 멤버만 필터
-      const { data: members } = await supabase
-        .from('members')
-        .select('id')
-        .eq('department_id', selectedDept)
-
-      if (members && members.length > 0) {
-        query = query.in('member_id', members.map((m: { id: string }) => m.id))
-      }
+    if (selectedDept !== 'all' && memberIds.length > 0) {
+      query = query.in('member_id', memberIds)
     }
 
     const { data: attendance } = await query
@@ -193,18 +219,23 @@ export default function StatsPage() {
       }
     })
 
-    // 재적 인원 조회
-    let totalQuery = supabase
-      .from('members')
-      .select('id')
-      .eq('is_active', true)
-
-    if (selectedDept !== 'all') {
-      totalQuery = totalQuery.eq('department_id', selectedDept)
+    // 재적 인원 조회 (member_departments 기준)
+    let total = 0
+    if (selectedDept === 'all') {
+      const { count } = await supabase
+        .from('members')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_active', true)
+      total = count || 0
+    } else {
+      // 선택된 부서의 활성 멤버 수
+      const { data: deptMembers } = await supabase
+        .from('member_departments')
+        .select('member_id, members!inner(is_active)')
+        .eq('department_id', selectedDept)
+        .eq('members.is_active', true)
+      total = deptMembers?.length || 0
     }
-
-    const { data: totalMembers } = await totalQuery
-    const total = totalMembers?.length || 0
 
     // 정렬된 주간 통계
     const stats = Array.from(weekMap.entries())
@@ -247,16 +278,25 @@ export default function StatsPage() {
     )
   }
 
-  // 전체 통계 계산
-  const totalWorshipCount = departmentStats.reduce((sum, d) => sum + d.worshipCount, 0)
-  const totalMeetingCount = departmentStats.reduce((sum, d) => sum + d.meetingCount, 0)
-  const totalMemberCount = departmentStats.reduce((sum, d) => sum + d.totalMembers, 0)
-  const avgWorshipRate = departmentStats.length > 0
-    ? Math.round(departmentStats.reduce((sum, d) => sum + d.worshipRate, 0) / departmentStats.length)
-    : 0
-  const avgMeetingRate = departmentStats.length > 0
-    ? Math.round(departmentStats.reduce((sum, d) => sum + d.meetingRate, 0) / departmentStats.length)
-    : 0
+  // 전체 통계 계산 (메모이제이션)
+  const { totalWorshipCount, totalMeetingCount, totalMemberCount, avgWorshipRate, avgMeetingRate } = useMemo(() => {
+    const worshipCount = departmentStats.reduce((sum, d) => sum + d.worshipCount, 0)
+    const meetingCount = departmentStats.reduce((sum, d) => sum + d.meetingCount, 0)
+    const memberCount = departmentStats.reduce((sum, d) => sum + d.totalMembers, 0)
+    const worshipRate = departmentStats.length > 0
+      ? Math.round(departmentStats.reduce((sum, d) => sum + d.worshipRate, 0) / departmentStats.length)
+      : 0
+    const meetingRate = departmentStats.length > 0
+      ? Math.round(departmentStats.reduce((sum, d) => sum + d.meetingRate, 0) / departmentStats.length)
+      : 0
+    return {
+      totalWorshipCount: worshipCount,
+      totalMeetingCount: meetingCount,
+      totalMemberCount: memberCount,
+      avgWorshipRate: worshipRate,
+      avgMeetingRate: meetingRate
+    }
+  }, [departmentStats])
 
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6">

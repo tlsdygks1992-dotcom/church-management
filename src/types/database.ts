@@ -14,6 +14,15 @@ export type ApprovalStatus =
   | 'revision_requested'
 export type AttendanceType = 'worship' | 'meeting'
 
+// 회계 카테고리
+export type ExpenseCategory =
+  | '운영비 수입' | '기타 수입'  // 수입
+  | '운영비' | '비품' | '경조사' | 'CU1행사' | 'CU2행사' | 'CU공통' | '리더지원' | '셀장지원' | '교육' | '기타'  // 지출
+
+export const INCOME_CATEGORIES: ExpenseCategory[] = ['운영비 수입', '기타 수입']
+export const EXPENSE_CATEGORIES: ExpenseCategory[] = ['운영비', '비품', '경조사', 'CU1행사', 'CU2행사', 'CU공통', '리더지원', '셀장지원', '교육', '기타']
+export const ALL_EXPENSE_CATEGORIES: ExpenseCategory[] = [...INCOME_CATEGORIES, ...EXPENSE_CATEGORIES]
+
 export interface Database {
   public: {
     Tables: {
@@ -55,6 +64,17 @@ export interface Database {
         Insert: Omit<Database['public']['Tables']['user_departments']['Row'], 'id' | 'created_at'>
         Update: Partial<Database['public']['Tables']['user_departments']['Insert']>
       }
+      member_departments: {
+        Row: {
+          id: string
+          member_id: string
+          department_id: string
+          is_primary: boolean
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['member_departments']['Row'], 'id' | 'created_at'>
+        Update: Partial<Database['public']['Tables']['member_departments']['Insert']>
+      }
       members: {
         Row: {
           id: string
@@ -66,13 +86,13 @@ export interface Database {
           occupation: string | null
           photo_url: string | null
           photo_updated_at: string | null
-          department_id: string
+          department_id: string | null  // 호환성을 위해 유지 (옵셔널)
           is_active: boolean
           joined_at: string
           created_at: string
           updated_at: string
         }
-        Insert: Omit<Database['public']['Tables']['members']['Row'], 'id' | 'created_at' | 'updated_at' | 'joined_at'> & { joined_at?: string }
+        Insert: Omit<Database['public']['Tables']['members']['Row'], 'id' | 'created_at' | 'updated_at' | 'joined_at' | 'department_id'> & { joined_at?: string; department_id?: string | null }
         Update: Partial<Database['public']['Tables']['members']['Insert']>
       }
       weekly_reports: {
@@ -206,6 +226,55 @@ export interface Database {
         Insert: Omit<Database['public']['Tables']['notifications']['Row'], 'id' | 'created_at'>
         Update: Partial<Database['public']['Tables']['notifications']['Insert']>
       }
+      expense_requests: {
+        Row: {
+          id: string
+          department_id: string
+          requester_id: string
+          request_date: string
+          total_amount: number
+          recipient_name: string | null
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['expense_requests']['Row'], 'id' | 'created_at' | 'updated_at' | 'total_amount'> & { total_amount?: number }
+        Update: Partial<Database['public']['Tables']['expense_requests']['Insert']>
+      }
+      expense_items: {
+        Row: {
+          id: string
+          expense_request_id: string
+          item_date: string
+          description: string
+          category: string
+          amount: number
+          notes: string | null
+          order_index: number
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['expense_items']['Row'], 'id' | 'created_at'>
+        Update: Partial<Database['public']['Tables']['expense_items']['Insert']>
+      }
+      accounting_records: {
+        Row: {
+          id: string
+          department_id: string
+          record_date: string
+          description: string
+          income_amount: number
+          expense_amount: number
+          balance: number
+          category: string
+          notes: string | null
+          expense_request_id: string | null
+          created_by: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['accounting_records']['Row'], 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Database['public']['Tables']['accounting_records']['Insert']>
+      }
     }
     Views: {
       pending_approvals: {
@@ -247,9 +316,50 @@ export interface Database {
 export type Department = Database['public']['Tables']['departments']['Row']
 export type User = Database['public']['Tables']['users']['Row']
 export type Member = Database['public']['Tables']['members']['Row']
+export type MemberDepartment = Database['public']['Tables']['member_departments']['Row']
 export type WeeklyReport = Database['public']['Tables']['weekly_reports']['Row']
 export type AttendanceRecord = Database['public']['Tables']['attendance_records']['Row']
 export type Newcomer = Database['public']['Tables']['newcomers']['Row']
 export type Notification = Database['public']['Tables']['notifications']['Row']
 export type ReportProgram = Database['public']['Tables']['report_programs']['Row']
 export type ApprovalHistory = Database['public']['Tables']['approval_history']['Row']
+
+// 교인 + 부서 정보 조인 타입
+export interface MemberWithDepartments extends Member {
+  member_departments: Array<{
+    department_id: string
+    is_primary: boolean
+    departments: {
+      id: string
+      name: string
+      code?: string
+    }
+  }>
+}
+
+// 회계 관련 타입
+export type ExpenseRequest = Database['public']['Tables']['expense_requests']['Row']
+export type ExpenseItem = Database['public']['Tables']['expense_items']['Row']
+export type AccountingRecord = Database['public']['Tables']['accounting_records']['Row']
+
+// 지출결의서 + 항목 조인 타입
+export interface ExpenseRequestWithItems extends ExpenseRequest {
+  expense_items: ExpenseItem[]
+  departments?: { name: string }
+  users?: { name: string }
+}
+
+// 회계장부 + 부서 조인 타입
+export interface AccountingRecordWithDetails extends AccountingRecord {
+  departments?: { name: string }
+  users?: { name: string }
+}
+
+// 권한 체크 함수
+export function canAccessAllDepartments(role: string): boolean {
+  return ['super_admin', 'accountant', 'president'].includes(role)
+}
+
+export function canAccessAccounting(role: string): boolean {
+  return ['super_admin', 'accountant', 'president', 'team_leader'].includes(role)
+}

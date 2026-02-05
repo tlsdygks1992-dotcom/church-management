@@ -3,11 +3,23 @@ import { createClient } from '@/lib/supabase/server'
 import Sidebar from '@/components/layout/Sidebar'
 import Header from '@/components/layout/Header'
 
+interface UserDepartment {
+  department_id: string
+  is_team_leader: boolean
+  departments: {
+    id: string
+    name: string
+    code: string
+  }
+}
+
 interface UserData {
   id: string
   name: string
   role: string
+  is_active: boolean
   departments: { name: string } | null
+  user_departments: UserDepartment[]
 }
 
 export default async function DashboardLayout({
@@ -22,14 +34,23 @@ export default async function DashboardLayout({
     redirect('/login')
   }
 
-  // 사용자 정보 조회
+  // 사용자 정보 조회 (is_active, user_departments 포함)
   const { data: userData } = await supabase
     .from('users')
-    .select('*, departments(*)')
+    .select(`
+      *,
+      departments(*),
+      user_departments(department_id, is_team_leader, departments(id, name, code))
+    `)
     .eq('id', user.id)
     .single()
 
   const userInfo = userData as UserData | null
+
+  // 미승인 사용자는 pending 페이지로 리다이렉트
+  if (userInfo && !userInfo.is_active) {
+    redirect('/pending')
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -42,7 +63,7 @@ export default async function DashboardLayout({
 
         {/* 메인 컨텐츠 */}
         <main className="flex-1 lg:ml-64">
-          <div className="p-4 lg:p-8 pt-20 lg:pt-8 pb-24 lg:pb-8">
+          <div className="p-4 lg:p-8 pt-[calc(5rem+env(safe-area-inset-top))] lg:pt-8 pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-8">
             {children}
           </div>
         </main>
