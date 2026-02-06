@@ -1,15 +1,21 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import UpdatePrompt from "@/components/pwa/UpdatePrompt";
+import QueryProvider from "@/providers/QueryProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
+  display: "swap",
+  preload: true,
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  display: "swap",
+  preload: true,
 });
 
 export const metadata: Metadata = {
@@ -39,13 +45,21 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <head>
+        {/* Supabase preconnect - LCP 및 네트워크 의존성 개선 */}
+        <link rel="preconnect" href="https://zikneyjidzovvkmflibo.supabase.co" />
+        <link rel="dns-prefetch" href="https://zikneyjidzovvkmflibo.supabase.co" />
+
+        {/* PWA */}
         <link rel="apple-touch-icon" href="/icon-192.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <QueryProvider>
+          {children}
+        </QueryProvider>
+        <UpdatePrompt />
       </body>
     </html>
   );

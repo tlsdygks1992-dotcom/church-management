@@ -59,7 +59,17 @@
       "Bash(netlify build:*)",
       "Bash(netlify sites:list:*)",
       "Bash(netlify link:*)",
-      "WebFetch(domain:church-eight-delta.vercel.app)"
+      "WebFetch(domain:church-eight-delta.vercel.app)",
+      "Bash(wc:*)",
+      "Bash(pip show:*)",
+      "Bash(pip install:*)",
+      "Bash(npx xlsx-cli:*)",
+      "Bash(node scripts/update-members.mjs:*)",
+      "Bash(node -e:*)",
+      "Bash(xargs cat:*)",
+      "Bash(npx skills find:*)",
+      "Bash(npx skills add:*)",
+      "Bash(npm test:*)"
     ]
   }
 }

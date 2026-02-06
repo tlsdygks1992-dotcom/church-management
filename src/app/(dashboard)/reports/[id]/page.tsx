@@ -78,24 +78,28 @@ function checkApprovalPermission(user: any, report: any): string | null {
   if (!user) return null
 
   // 결재 단계별 권한 확인
-  // 보고 체계: 팀장 → 회장(협조) → 부장(결재) + 목사(협조/확인)
+  // 보고 체계: 팀장 → 회장(협조) → 부장(결재) → 목사(확인)
+  // super_admin은 모든 단계 처리 가능
 
   // 1단계: 회장 협조 (submitted → coordinator_reviewed)
-  // 회장이 검토 후 부장에게 전달
-  if (report.status === 'submitted' && user.role === 'president') {
-    return 'coordinator'
+  if (report.status === 'submitted') {
+    if (user.role === 'president' || user.role === 'super_admin') {
+      return 'coordinator'
+    }
   }
 
   // 2단계: 부장 결재 (coordinator_reviewed → manager_approved)
-  // 부장만 실제 결재 권한 보유
-  if (report.status === 'coordinator_reviewed' && user.role === 'manager') {
-    return 'manager'
+  if (report.status === 'coordinator_reviewed') {
+    if (user.role === 'accountant' || user.role === 'super_admin') {
+      return 'manager'
+    }
   }
 
   // 3단계: 목사 확인 (manager_approved → final_approved)
-  // 목사는 최종 확인 (협조)
-  if (report.status === 'manager_approved' && user.role === 'pastor') {
-    return 'final'
+  if (report.status === 'manager_approved') {
+    if (user.role === 'super_admin') {
+      return 'final'
+    }
   }
 
   return null

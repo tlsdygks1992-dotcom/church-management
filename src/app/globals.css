@@ -46,11 +46,45 @@ body {
   background: #9ca3af;
 }
 
-/* 모바일 터치 피드백 */
-@media (hover: none) {
+/* 모바일 터치 개선 */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 버튼/링크 터치 영역 및 반응성 개선 */
+button,
+a,
+[role="button"],
+input[type="submit"],
+input[type="button"] {
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 터치 디바이스 피드백 */
+@media (hover: none) and (pointer: coarse) {
   button:active,
-  a:active {
+  a:active,
+  [role="button"]:active {
     opacity: 0.7;
+    transform: scale(0.98);
+    transition: transform 0.1s ease, opacity 0.1s ease;
+  }
+
+  /* 최소 터치 영역 보장 */
+  button,
+  a,
+  [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* 작은 아이콘 버튼 예외 */
+  button.icon-btn,
+  .icon-btn {
+    min-height: 40px;
+    min-width: 40px;
   }
 }
 

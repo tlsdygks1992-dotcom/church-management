@@ -10,59 +10,74 @@ interface Department {
 export default async function AttendancePage() {
   const supabase = await createClient()
 
-  // 현재 사용자 정보
-  const { data: { user } } = await supabase.auth.getUser()
-  const { data: userData } = await supabase
-    .from('users')
-    .select('*, departments(id, name, code)')
-    .eq('id', user!.id)
-    .single()
-
-  // super_admin은 모든 부서 접근 가능, 아니면 자신의 부서만
-  let departments: Department[] = []
-
-  if (userData?.role === 'super_admin' || userData?.role === 'president' || userData?.role === 'manager' || userData?.role === 'pastor') {
-    // 관리자는 모든 부서 조회 가능
-    const { data: allDepts } = await supabase
-      .from('departments')
-      .select('id, name, code')
-      .order('name')
-    departments = (allDepts || []) as Department[]
-  } else if (userData?.departments) {
-    // 일반 사용자는 자신의 부서만
-    departments = [userData.departments as Department]
-  }
-
   // 이번 주 일요일 날짜
   const now = new Date()
   const sunday = new Date(now)
   sunday.setDate(now.getDate() - now.getDay())
   const sundayStr = sunday.toISOString().split('T')[0]
 
+  // 1단계: 사용자 정보와 전체 부서를 병렬로 조회
+  const { data: { user } } = await supabase.auth.getUser()
+
+  const [userResult, allDeptsResult] = await Promise.all([
+    supabase
+      .from('users')
+      .select('*, departments(id, name, code)')
+      .eq('id', user!.id)
+      .single(),
+    supabase
+      .from('departments')
+      .select('id, name, code')
+      .order('name')
+  ])
+
+  const userData = userResult.data
+
+  // super_admin은 모든 부서 접근 가능, 아니면 자신의 부서만
+  let departments: Department[] = []
+
+  if (userData?.role === 'super_admin' || userData?.role === 'president' || userData?.role === 'accountant') {
+    departments = (allDeptsResult.data || []) as Department[]
+  } else if (userData?.departments) {
+    departments = [userData.departments as Department]
+  }
+
   // 기본 부서 (첫 번째 부서)
   const defaultDeptId = departments[0]?.id
 
-  // 해당 부서 교인 목록
-  let members: Array<{ id: string; name: string; phone: string | null; photo_url: string | null; department_id: string; is_active: boolean }> = []
-  if (defaultDeptId) {
-    const { data } = await supabase
-      .from('members')
-      .select('*')
-      .eq('department_id', defaultDeptId)
-      .eq('is_active', true)
-      .order('name')
-    members = (data || []) as typeof members
-  }
-
-  // 오늘 출결 기록
+  // 2단계: 교인 목록과 출결 기록을 병렬로 조회
+  let members: Array<{ id: string; name: string; phone: string | null; photo_url: string | null; is_active: boolean }> = []
   let attendanceRecords: Array<{ id: string; member_id: string; attendance_type: string; is_present: boolean; attendance_date: string }> = []
-  if (defaultDeptId && members.length > 0) {
-    const { data } = await supabase
-      .from('attendance_records')
-      .select('*')
-      .eq('attendance_date', sundayStr)
-      .in('member_id', members.map(m => m.id))
-    attendanceRecords = (data || []) as typeof attendanceRecords
+
+  if (defaultDeptId) {
+    // member_departments와 출결 기록을 병렬로 조회
+    const [memberDeptResult, attendanceResult] = await Promise.all([
+      supabase
+        .from('member_departments')
+        .select('member_id')
+        .eq('department_id', defaultDeptId),
+      supabase
+        .from('attendance_records')
+        .select('*')
+        .eq('attendance_date', sundayStr)
+    ])
+
+    const memberIds = [...new Set((memberDeptResult.data || []).map(md => md.member_id))]
+
+    if (memberIds.length > 0) {
+      const { data } = await supabase
+        .from('members')
+        .select('id, name, phone, photo_url, is_active')
+        .in('id', memberIds)
+        .eq('is_active', true)
+        .order('name')
+      members = (data || []) as typeof members
+
+      // 해당 부서 교인의 출결만 필터링
+      const memberIdSet = new Set(members.map(m => m.id))
+      attendanceRecords = ((attendanceResult.data || []) as typeof attendanceRecords)
+        .filter(a => memberIdSet.has(a.member_id))
+    }
   }
 
   return (

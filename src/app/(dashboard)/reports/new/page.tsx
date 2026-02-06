@@ -57,7 +57,9 @@ export default function NewReportPage() {
       .eq('id', user.id)
       .single()
 
-    const isAdmin = userData?.role === 'super_admin' || userData?.role === 'president'
+    // 팀장 이상 권한 체크: super_admin, president, accountant, team_leader
+    const adminRoles = ['super_admin', 'president', 'accountant', 'team_leader']
+    const isAdmin = adminRoles.includes(userData?.role)
     const isTeamLeader = userData?.user_departments?.some((ud: { is_team_leader: boolean }) => ud.is_team_leader)
 
     if (!isAdmin && !isTeamLeader) {

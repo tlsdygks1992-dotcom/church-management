@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { createApprovalNotification } from '@/lib/notifications'
+import { useToastContext } from '@/providers/ToastProvider'
 import type { WeeklyReport, ReportProgram, Newcomer, ApprovalHistory, User } from '@/types/database'
 
 type ReportType = 'weekly' | 'meeting' | 'education'
@@ -47,6 +48,7 @@ export default function ReportDetail({
 }: ReportDetailProps) {
   const router = useRouter()
   const supabase = createClient()
+  const toast = useToastContext()
   const [loading, setLoading] = useState(false)
   const [comment, setComment] = useState('')
   const [showApprovalModal, setShowApprovalModal] = useState(false)
@@ -89,7 +91,12 @@ export default function ReportDetail({
   }, [])
 
   const handlePrint = useCallback((directIP?: string) => {
-    const parsedNotes = report.notes ? JSON.parse(report.notes) : {}
+    let parsedNotes: Record<string, any> = {}
+    try {
+      parsedNotes = report.notes ? JSON.parse(report.notes) : {}
+    } catch {
+      parsedNotes = {}
+    }
     const cellAttendance = parsedNotes.cell_attendance || []
     const reportDate = new Date(report.report_date)
 
@@ -233,7 +240,7 @@ export default function ReportDetail({
       router.refresh()
     } catch (error) {
       console.error('Failed to cancel submission:', error)
-      alert('제출 취소 중 오류가 발생했습니다.')
+      toast.error('제출 취소 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)
     }
@@ -308,7 +315,12 @@ export default function ReportDetail({
     }
   }
 
-  const parsedNotes = report.notes ? JSON.parse(report.notes) : {}
+  let parsedNotes: Record<string, any> = {}
+  try {
+    parsedNotes = report.notes ? JSON.parse(report.notes) : {}
+  } catch {
+    parsedNotes = {}
+  }
 
   return (
     <div className="space-y-4 lg:space-y-6 max-w-4xl mx-auto">
@@ -449,9 +461,10 @@ export default function ReportDetail({
             {reportType === 'meeting' ? '주요내용' : '교육내용'}
           </h2>
           <div className="bg-gray-50 p-4 rounded-xl">
-            <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-              {report.main_content}
-            </p>
+            <div
+              className="text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none"
+              dangerouslySetInnerHTML={{ __html: report.main_content }}
+            />
           </div>
         </div>
       )}
@@ -507,9 +520,10 @@ export default function ReportDetail({
               <div>
                 <p className="text-xs font-medium text-gray-500 mb-1">적용점</p>
                 <div className="bg-gray-50 p-3 rounded-xl">
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                    {report.application_notes}
-                  </p>
+                  <div
+                    className="text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none"
+                    dangerouslySetInnerHTML={{ __html: report.application_notes }}
+                  />
                 </div>
               </div>
             )}
@@ -517,9 +531,10 @@ export default function ReportDetail({
               <div>
                 <p className="text-xs font-medium text-gray-500 mb-1">논의사항</p>
                 <div className="bg-gray-50 p-3 rounded-xl">
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                    {parsedNotes.discussion_notes}
-                  </p>
+                  <div
+                    className="text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none"
+                    dangerouslySetInnerHTML={{ __html: parsedNotes.discussion_notes }}
+                  />
                 </div>
               </div>
             )}
@@ -527,9 +542,10 @@ export default function ReportDetail({
               <div>
                 <p className="text-xs font-medium text-gray-500 mb-1">기타사항</p>
                 <div className="bg-gray-50 p-3 rounded-xl">
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                    {parsedNotes.other_notes}
-                  </p>
+                  <div
+                    className="text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none"
+                    dangerouslySetInnerHTML={{ __html: parsedNotes.other_notes }}
+                  />
                 </div>
               </div>
             )}

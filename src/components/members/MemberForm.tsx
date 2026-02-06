@@ -2,18 +2,32 @@
 
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import type { Member } from '@/types/database'
+import PhotoUploader from './PhotoUploader'
+import DepartmentSelector from './DepartmentSelector'
 
 interface Department {
   id: string
   name: string
 }
 
+interface MemberDepartmentData {
+  department_id: string
+  is_primary: boolean
+  departments: {
+    id: string
+    name: string
+  }
+}
+
+interface MemberWithDepartments extends Member {
+  member_departments?: MemberDepartmentData[]
+}
+
 interface MemberFormProps {
   departments: Department[]
-  member?: Member
+  member?: MemberWithDepartments
 }
 
 export default function MemberForm({ departments, member }: MemberFormProps) {
@@ -23,7 +37,11 @@ export default function MemberForm({ departments, member }: MemberFormProps) {
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [photoPreview, setPhotoPreview] = useState<string | null>(member?.photo_url || null)
+
+  // 기존 member_departments에서 부서 ID 목록 추출
+  const initialDeptIds = member?.member_departments?.map(md => md.department_id) || []
+  const initialPrimaryDeptId = member?.member_departments?.find(md => md.is_primary)?.department_id ||
+    initialDeptIds[0] || departments[0]?.id || ''
 
   const [form, setForm] = useState({
     name: member?.name || '',
@@ -32,23 +50,49 @@ export default function MemberForm({ departments, member }: MemberFormProps) {
     birth_date: member?.birth_date || '',
     address: member?.address || '',
     occupation: member?.occupation || '',
-    department_id: member?.department_id || departments[0]?.id || '',
   })
 
-  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  // 다중 부서 선택
+  const [selectedDeptIds, setSelectedDeptIds] = useState<string[]>(
+    initialDeptIds.length > 0 ? initialDeptIds : (departments[0]?.id ? [departments[0].id] : [])
+  )
+  // 주 소속 부서
+  const [primaryDeptId, setPrimaryDeptId] = useState<string>(initialPrimaryDeptId)
 
-    // 미리보기
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      setPhotoPreview(e.target?.result as string)
+  // 부서 체크박스 토글
+  const handleDeptToggle = (deptId: string) => {
+    setSelectedDeptIds(prev => {
+      if (prev.includes(deptId)) {
+        // 마지막 하나는 제거 불가
+        if (prev.length === 1) return prev
+        const newIds = prev.filter(id => id !== deptId)
+        // 주 소속 부서가 제거되면 첫 번째 부서를 주 소속으로
+        if (primaryDeptId === deptId) {
+          setPrimaryDeptId(newIds[0])
+        }
+        return newIds
+      } else {
+        return [...prev, deptId]
+      }
+    })
+  }
+
+  // 주 소속 부서 변경
+  const handlePrimaryChange = (deptId: string) => {
+    if (selectedDeptIds.includes(deptId)) {
+      setPrimaryDeptId(deptId)
     }
-    reader.readAsDataURL(file)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    // 부서 선택 유효성 검사
+    if (selectedDeptIds.length === 0) {
+      setError('최소 1개 부서를 선택해주세요')
+      return
+    }
+
     setLoading(true)
     setError(null)
 
@@ -70,8 +114,8 @@ export default function MemberForm({ departments, member }: MemberFormProps) {
             if (oldPath) {
               await supabase.storage.from('member-photos').remove([oldPath])
             }
-          } catch (e) {
-            console.log('기존 사진 삭제 실패 (무시):', e)
+          } catch {
+            // 기존 사진 삭제 실패 시 무시
           }
         }
 
@@ -93,35 +137,94 @@ export default function MemberForm({ departments, member }: MemberFormProps) {
       }
 
       if (isEdit) {
-        // 수정
-        const { error } = await supabase
+        // 수정: members 테이블 업데이트
+        const { error: memberError } = await supabase
           .from('members')
           .update({
-            ...form,
+            name: form.name,
+            phone: form.phone || null,
+            email: form.email || null,
+            birth_date: form.birth_date || null,
+            address: form.address || null,
+            occupation: form.occupation || null,
+            department_id: primaryDeptId,
             photo_url,
             photo_updated_at: file ? new Date().toISOString() : member?.photo_updated_at,
           })
           .eq('id', member.id)
 
-        if (error) throw error
+        if (memberError) {
+          throw new Error(`교인 정보 업데이트 실패: ${memberError.message}`)
+        }
+
+        // member_departments 업데이트: 기존 삭제 후 재생성
+        const { error: deleteError } = await supabase
+          .from('member_departments')
+          .delete()
+          .eq('member_id', member.id)
+
+        if (deleteError) {
+          // 부서 연결 삭제 실패는 무시하고 계속 진행
+        }
+
+        const deptRecords = selectedDeptIds.map(deptId => ({
+          member_id: member.id,
+          department_id: deptId,
+          is_primary: deptId === primaryDeptId,
+        }))
+
+        const { error: deptError } = await supabase
+          .from('member_departments')
+          .insert(deptRecords)
+
+        if (deptError) {
+          throw new Error(`부서 연결 추가 실패: ${deptError.message}`)
+        }
       } else {
-        // 등록
-        const { error } = await supabase
+        // 등록: members 테이블에 먼저 삽입
+        const { data: newMember, error: memberError } = await supabase
           .from('members')
           .insert({
             ...form,
+            department_id: primaryDeptId, // 호환성을 위해 주 소속 부서 저장
             photo_url,
             photo_updated_at: file ? new Date().toISOString() : null,
+            is_active: true,
           })
+          .select('id')
+          .single()
 
-        if (error) throw error
+        if (memberError) throw memberError
+
+        // member_departments에 부서 연결 추가
+        const deptRecords = selectedDeptIds.map(deptId => ({
+          member_id: newMember.id,
+          department_id: deptId,
+          is_primary: deptId === primaryDeptId,
+        }))
+
+        const { error: deptError } = await supabase
+          .from('member_departments')
+          .insert(deptRecords)
+
+        if (deptError) throw deptError
       }
 
       router.push('/members')
       router.refresh()
-    } catch (err) {
-      setError('저장 중 오류가 발생했습니다.')
-      console.error(err)
+    } catch (err: unknown) {
+      let errorMessage = '알 수 없는 오류'
+      if (err instanceof Error) {
+        errorMessage = err.message
+      } else if (typeof err === 'object' && err !== null) {
+        // Supabase 에러 객체 처리
+        const supabaseError = err as { message?: string; details?: string; hint?: string; code?: string }
+        errorMessage = supabaseError.message || supabaseError.details || JSON.stringify(err)
+      } else {
+        errorMessage = String(err)
+      }
+      setError(`저장 중 오류: ${errorMessage}`)
+      console.error('저장 오류 상세:', JSON.stringify(err, null, 2))
     } finally {
       setLoading(false)
     }
@@ -130,36 +233,10 @@ export default function MemberForm({ departments, member }: MemberFormProps) {
   return (
     <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 space-y-6">
       {/* 사진 업로드 */}
-      <div className="flex flex-col items-center">
-        <label htmlFor="photo" className="cursor-pointer">
-          <div className="w-32 h-32 rounded-full overflow-hidden bg-gray-100 border-4 border-gray-200 hover:border-blue-400 transition-colors relative">
-            {photoPreview ? (
-              <Image
-                src={photoPreview}
-                alt="미리보기"
-                fill
-                sizes="128px"
-                className="object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
-                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-                <span className="text-xs mt-1">사진 추가</span>
-              </div>
-            )}
-          </div>
-        </label>
-        <input
-          id="photo"
-          type="file"
-          accept="image/*"
-          onChange={handlePhotoChange}
-          className="hidden"
-        />
-        <p className="text-sm text-gray-500 mt-2">얼굴 매칭 출결에 사용됩니다</p>
-      </div>
+      <PhotoUploader
+        initialPhotoUrl={member?.photo_url || null}
+        onPhotoChange={() => {/* file은 input#photo에서 직접 참조 */}}
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {/* 이름 */}
@@ -210,24 +287,14 @@ export default function MemberForm({ departments, member }: MemberFormProps) {
           />
         </div>
 
-        {/* 부서 */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            부서 <span className="text-red-500">*</span>
-          </label>
-          <select
-            required
-            value={form.department_id}
-            onChange={(e) => setForm({ ...form, department_id: e.target.value })}
-            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
-          >
-            {departments.map((dept) => (
-              <option key={dept.id} value={dept.id}>
-                {dept.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* 부서 (다중 선택) */}
+        <DepartmentSelector
+          departments={departments}
+          selectedDeptIds={selectedDeptIds}
+          primaryDeptId={primaryDeptId}
+          onToggle={handleDeptToggle}
+          onPrimaryChange={handlePrimaryChange}
+        />
 
         {/* 직업/소속 */}
         <div>

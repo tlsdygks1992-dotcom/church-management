@@ -1,25 +1,19 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
 import NotificationBell from '@/components/notifications/NotificationBell'
-
-interface SidebarProps {
-  user: {
-    id: string
-    name: string
-    role: string
-    departments: { name: string } | null
-  } | null
-}
+import { useAuth } from '@/providers/AuthProvider'
+import { isAdminRole } from '@/lib/permissions'
 
 const navigation = [
   { name: '대시보드', href: '/dashboard', icon: HomeIcon },
   { name: '출결 관리', href: '/attendance', icon: CheckCircleIcon },
   { name: '보고서', href: '/reports', icon: DocumentIcon },
   { name: '교인 명단', href: '/members', icon: UsersIcon },
+  { name: '회계 관리', href: '/accounting', icon: WalletIcon },
+  { name: '활동 사진', href: '/photos', icon: PhotoIcon },
   { name: '안내', href: '/guide', icon: InfoIcon },
 ]
 
@@ -29,7 +23,8 @@ const adminNavigation = [
   { name: '사용자 관리', href: '/users', icon: UserCogIcon },
 ]
 
-export default function Sidebar({ user }: SidebarProps) {
+export default function Sidebar() {
+  const { user } = useAuth()
   const pathname = usePathname()
   const router = useRouter()
 
@@ -40,7 +35,7 @@ export default function Sidebar({ user }: SidebarProps) {
     router.refresh()
   }
 
-  const isAdmin = user?.role === 'super_admin' || user?.role === 'president' || user?.role === 'manager' || user?.role === 'pastor'
+  const isAdmin = isAdminRole(user?.role || '')
 
   return (
     <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:fixed lg:inset-y-0 bg-slate-900">
@@ -199,11 +194,27 @@ function InfoIcon({ className }: { className?: string }) {
   )
 }
 
+function PhotoIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+    </svg>
+  )
+}
+
 function UserCogIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  )
+}
+
+function WalletIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
     </svg>
   )
 }

@@ -1,20 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import MemberForm from '@/components/members/MemberForm'
-
-interface UserDepartment {
-  department_id: string
-  is_team_leader: boolean
-  departments: {
-    id: string
-    name: string
-  }
-}
-
-interface UserData {
-  role: string
-  user_departments: UserDepartment[]
-}
+import type { UserData } from '@/types/shared'
+import { isAdmin as checkAdmin, isTeamLeader as checkTeamLeader, getTeamLeaderDepartments } from '@/lib/permissions'
 
 export default async function NewMemberPage() {
   const supabase = await createClient()
@@ -28,22 +16,20 @@ export default async function NewMemberPage() {
     .single()
 
   const userInfo = userData as UserData | null
-  const isAdmin = userInfo?.role === 'super_admin' || userInfo?.role === 'president'
-  const isTeamLeader = userInfo?.user_departments?.some((ud) => ud.is_team_leader)
+  const adminUser = checkAdmin(userInfo?.role || '')
+  const teamLeader = checkTeamLeader(userInfo)
 
-  if (!isAdmin && !isTeamLeader) {
+  if (!adminUser && !teamLeader) {
     redirect('/members')
   }
 
   // 등록 가능한 부서
   let departments: { id: string; name: string }[] = []
-  if (isAdmin) {
+  if (adminUser) {
     const { data } = await supabase.from('departments').select('*')
     departments = data || []
   } else {
-    departments = userInfo?.user_departments
-      ?.filter((ud) => ud.is_team_leader)
-      .map((ud) => ud.departments) || []
+    departments = getTeamLeaderDepartments(userInfo)
   }
 
   return (

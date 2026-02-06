@@ -156,14 +156,26 @@ export default function AttendanceGrid({
 
   const loadData = useCallback(async (deptId: string, date: string) => {
     startTransition(async () => {
-      const { data: newMembersData } = await supabase
-        .from('members')
-        .select('id, name, photo_url')
+      // member_departments를 통해 해당 부서에 속한 교인 ID 조회
+      const { data: memberDeptData } = await supabase
+        .from('member_departments')
+        .select('member_id')
         .eq('department_id', deptId)
-        .eq('is_active', true)
-        .order('name')
 
-      const newMembers = (newMembersData || []) as MemberBasic[]
+      const memberIds = [...new Set((memberDeptData || []).map((md: { member_id: string }) => md.member_id))]
+
+      let newMembers: MemberBasic[] = []
+      if (memberIds.length > 0) {
+        const { data: newMembersData } = await supabase
+          .from('members')
+          .select('id, name, photo_url')
+          .in('id', memberIds)
+          .eq('is_active', true)
+          .order('name')
+
+        newMembers = (newMembersData || []) as MemberBasic[]
+      }
+
       setMembers(newMembers)
 
       if (newMembers.length > 0) {

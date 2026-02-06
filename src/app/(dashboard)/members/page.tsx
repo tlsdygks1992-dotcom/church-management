@@ -1,65 +1,65 @@
 import { createClient } from '@/lib/supabase/server'
 import MemberList from '@/components/members/MemberList'
-
-interface UserDepartment {
-  department_id: string
-  is_team_leader: boolean
-  departments: {
-    id: string
-    name: string
-    code: string
-  }
-}
-
-interface UserData {
-  role: string
-  user_departments: UserDepartment[]
-}
+import type { UserData, MemberWithDepts } from '@/types/shared'
+import { isAdmin as checkAdmin, canEditMembers } from '@/lib/permissions'
 
 export default async function MembersPage() {
   const supabase = await createClient()
 
-  // 현재 사용자 정보
+  // 현재 사용자 정보와 전체 부서를 병렬로 조회
   const { data: { user } } = await supabase.auth.getUser()
-  const { data: userData } = await supabase
-    .from('users')
-    .select('*, user_departments(department_id, is_team_leader, departments(id, name, code))')
-    .eq('id', user!.id)
-    .single()
 
-  const userInfo = userData as UserData | null
-  const isAdmin = userInfo?.role === 'super_admin' || userInfo?.role === 'president'
+  const [userResult, allDeptsResult] = await Promise.all([
+    supabase
+      .from('users')
+      .select('*, user_departments(department_id, is_team_leader, departments(id, name, code))')
+      .eq('id', user!.id)
+      .single(),
+    supabase.from('departments').select('*')
+  ])
+
+  const userInfo = userResult.data as UserData | null
+  const adminUser = checkAdmin(userInfo?.role || '')
 
   // 접근 가능한 부서
   let departments: { id: string; name: string }[] = []
-  if (isAdmin) {
-    const { data } = await supabase.from('departments').select('*')
-    departments = data || []
+  if (adminUser) {
+    departments = allDeptsResult.data || []
   } else {
     departments = userInfo?.user_departments?.map((ud) => ud.departments) || []
   }
 
-  // 교인 목록
-  let members: Array<{ id: string; name: string; phone: string | null; birth_date: string | null; department_id: string; is_active: boolean; photo_url: string | null; joined_at: string; departments: { name: string } | null }> = []
-  if (isAdmin) {
+  // 교인 목록 (member_departments를 통해 조회)
+  let members: MemberWithDepts[] = []
+  if (adminUser) {
     const { data } = await supabase
       .from('members')
-      .select('*, departments(name)')
+      .select('id, name, phone, birth_date, department_id, is_active, photo_url, joined_at, member_departments(department_id, is_primary, departments(id, name))')
       .order('name')
-    members = (data || []) as typeof members
+    members = (data || []) as unknown as MemberWithDepts[]
   } else {
     const deptIds = departments.map((d) => d.id)
     if (deptIds.length > 0) {
-      const { data } = await supabase
-        .from('members')
-        .select('*, departments(name)')
+      // member_departments를 통해 해당 부서에 속한 교인 조회
+      const { data: memberDeptData } = await supabase
+        .from('member_departments')
+        .select('member_id')
         .in('department_id', deptIds)
-        .order('name')
-      members = (data || []) as typeof members
+
+      const memberIds = [...new Set((memberDeptData || []).map(md => md.member_id))]
+
+      if (memberIds.length > 0) {
+        const { data } = await supabase
+          .from('members')
+          .select('id, name, phone, birth_date, department_id, is_active, photo_url, joined_at, member_departments(department_id, is_primary, departments(id, name))')
+          .in('id', memberIds)
+          .order('name')
+        members = (data || []) as unknown as MemberWithDepts[]
+      }
     }
   }
 
-  const canEdit = isAdmin || userInfo?.user_departments?.some((ud) => ud.is_team_leader)
+  const canEdit = canEditMembers(userInfo)
 
   return (
     <div className="space-y-4 lg:space-y-6 max-w-6xl mx-auto">

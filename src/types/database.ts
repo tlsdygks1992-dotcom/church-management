@@ -355,11 +355,6 @@ export interface AccountingRecordWithDetails extends AccountingRecord {
   users?: { name: string }
 }
 
-// 권한 체크 함수
-export function canAccessAllDepartments(role: string): boolean {
-  return ['super_admin', 'accountant', 'president'].includes(role)
-}
-
-export function canAccessAccounting(role: string): boolean {
-  return ['super_admin', 'accountant', 'president', 'team_leader'].includes(role)
-}
+// 권한 체크 함수는 src/lib/permissions.ts로 이동
+// 하위 호환성을 위한 re-export
+export { canAccessAllDepartments, canAccessAccounting } from '@/lib/permissions'

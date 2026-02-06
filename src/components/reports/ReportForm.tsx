@@ -1,10 +1,16 @@
 'use client'
 
-import { useState, useEffect, useMemo, memo, useCallback, useRef } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { createApprovalNotification } from '@/lib/notifications'
+import { useToastContext } from '@/providers/ToastProvider'
 import dynamic from 'next/dynamic'
+import type { Program, Newcomer, CellAttendance } from './types'
+import ProgramTable from './ProgramTable'
+import AttendanceInput from './AttendanceInput'
+import NewcomerSection from './NewcomerSection'
+import PhotoUploadSection from './PhotoUploadSection'
 
 // 클라이언트 전용 컴포넌트로 동적 import
 const RichTextEditor = dynamic(() => import('@/components/ui/RichTextEditor'), {
@@ -64,421 +70,11 @@ interface ReportFormProps {
   existingReport?: ExistingReport
 }
 
-interface Program {
-  id?: string
-  start_time: string
-  end_time: string
-  content: string
-  person_in_charge: string
-  note: string
-  order_index: number
-}
-
-interface Newcomer {
-  name: string
-  phone: string
-  birth_date: string
-  introducer: string
-  address: string
-  affiliation: string
-}
-
-interface CellAttendance {
-  cell_name: string
-  registered: number
-  worship: number
-  meeting: number
-  note: string
-}
-
-// 5분 단위 시간 옵션 (모듈 레벨 캐싱)
-const TIME_OPTIONS: string[] = (() => {
-  const options: string[] = []
-  for (let hour = 0; hour < 24; hour++) {
-    for (let minute = 0; minute < 60; minute += 5) {
-      const h = hour.toString().padStart(2, '0')
-      const m = minute.toString().padStart(2, '0')
-      options.push(`${h}:${m}`)
-    }
-  }
-  return options
-})()
-
 const REPORT_TYPE_LABELS: Record<ReportType, string> = {
   weekly: '주차 보고서',
   meeting: '모임 보고서',
   education: '교육 보고서',
 }
-
-// 메모이제이션된 프로그램 행 컴포넌트 (데스크톱용)
-const ProgramRowDesktop = memo(function ProgramRowDesktop({
-  program,
-  index,
-  onUpdate,
-  onRemove,
-}: {
-  program: Program
-  index: number
-  onUpdate: (index: number, field: keyof Program, value: string | number) => void
-  onRemove: (index: number) => void
-}) {
-  return (
-    <tr>
-      <td className="px-2 py-2">
-        <div className="flex items-center gap-1">
-          <select
-            value={program.start_time}
-            onChange={(e) => onUpdate(index, 'start_time', e.target.value)}
-            className="w-[85px] px-2 py-1.5 border border-gray-200 rounded text-sm bg-white"
-          >
-            {TIME_OPTIONS.map((time) => (
-              <option key={`start-${index}-${time}`} value={time}>{time}</option>
-            ))}
-          </select>
-          <span className="text-gray-400">~</span>
-          <select
-            value={program.end_time}
-            onChange={(e) => onUpdate(index, 'end_time', e.target.value)}
-            className="w-[85px] px-2 py-1.5 border border-gray-200 rounded text-sm bg-white"
-          >
-            {TIME_OPTIONS.map((time) => (
-              <option key={`end-${index}-${time}`} value={time}>{time}</option>
-            ))}
-          </select>
-        </div>
-      </td>
-      <td className="px-2 py-2">
-        <input
-          type="text"
-          value={program.content}
-          onChange={(e) => onUpdate(index, 'content', e.target.value)}
-          placeholder="예: 찬양 및 기도"
-          className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm"
-        />
-      </td>
-      <td className="px-2 py-2">
-        <input
-          type="text"
-          value={program.person_in_charge}
-          onChange={(e) => onUpdate(index, 'person_in_charge', e.target.value)}
-          placeholder="담당자"
-          className="w-24 px-2 py-1.5 border border-gray-200 rounded text-sm"
-        />
-      </td>
-      <td className="px-2 py-2">
-        <input
-          type="text"
-          value={program.note}
-          onChange={(e) => onUpdate(index, 'note', e.target.value)}
-          placeholder="비고"
-          className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm"
-        />
-      </td>
-      <td className="px-2 py-2">
-        <button type="button" onClick={() => onRemove(index)} className="text-gray-400 hover:text-red-500">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </td>
-    </tr>
-  )
-})
-
-// 모바일용 프로그램 카드 컴포넌트
-const ProgramCardMobile = memo(function ProgramCardMobile({
-  program,
-  index,
-  onUpdate,
-  onRemove,
-}: {
-  program: Program
-  index: number
-  onUpdate: (index: number, field: keyof Program, value: string | number) => void
-  onRemove: (index: number) => void
-}) {
-  return (
-    <div className="border border-gray-200 rounded-lg p-3 space-y-3">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-gray-500">순서 {index + 1}</span>
-        <button type="button" onClick={() => onRemove(index)} className="text-gray-400 hover:text-red-500">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-      <div className="flex gap-2">
-        <select
-          value={program.start_time}
-          onChange={(e) => onUpdate(index, 'start_time', e.target.value)}
-          className="flex-1 px-2 py-1.5 border border-gray-200 rounded text-sm bg-white"
-        >
-          {TIME_OPTIONS.map((time) => (
-            <option key={`m-start-${index}-${time}`} value={time}>{time}</option>
-          ))}
-        </select>
-        <span className="text-gray-400 py-1.5">~</span>
-        <select
-          value={program.end_time}
-          onChange={(e) => onUpdate(index, 'end_time', e.target.value)}
-          className="flex-1 px-2 py-1.5 border border-gray-200 rounded text-sm bg-white"
-        >
-          {TIME_OPTIONS.map((time) => (
-            <option key={`m-end-${index}-${time}`} value={time}>{time}</option>
-          ))}
-        </select>
-      </div>
-      <input
-        type="text"
-        value={program.content}
-        onChange={(e) => onUpdate(index, 'content', e.target.value)}
-        placeholder="내용 (예: 찬양 및 기도)"
-        className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm"
-      />
-      <div className="grid grid-cols-2 gap-2">
-        <input
-          type="text"
-          value={program.person_in_charge}
-          onChange={(e) => onUpdate(index, 'person_in_charge', e.target.value)}
-          placeholder="담당자"
-          className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm"
-        />
-        <input
-          type="text"
-          value={program.note}
-          onChange={(e) => onUpdate(index, 'note', e.target.value)}
-          placeholder="비고"
-          className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm"
-        />
-      </div>
-    </div>
-  )
-})
-
-// 메모이제이션된 셀 출결 행 컴포넌트
-const CellAttendanceRow = memo(function CellAttendanceRow({
-  cell,
-  index,
-  onUpdate,
-  onRemove,
-}: {
-  cell: CellAttendance
-  index: number
-  onUpdate: (index: number, field: keyof CellAttendance, value: string | number) => void
-  onRemove: (index: number) => void
-}) {
-  return (
-    <tr>
-      <td className="px-3 py-2">
-        <input
-          type="text"
-          value={cell.cell_name}
-          onChange={(e) => onUpdate(index, 'cell_name', e.target.value)}
-          placeholder="셀 이름"
-          className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm"
-        />
-      </td>
-      <td className="px-3 py-2">
-        <input
-          type="number"
-          value={cell.registered || ''}
-          onChange={(e) => onUpdate(index, 'registered', parseInt(e.target.value) || 0)}
-          className="w-16 px-2 py-1.5 border border-gray-200 rounded text-sm text-center"
-        />
-      </td>
-      <td className="px-3 py-2">
-        <input
-          type="number"
-          value={cell.worship || ''}
-          onChange={(e) => onUpdate(index, 'worship', parseInt(e.target.value) || 0)}
-          className="w-16 px-2 py-1.5 border border-gray-200 rounded text-sm text-center"
-        />
-      </td>
-      <td className="px-3 py-2">
-        <input
-          type="number"
-          value={cell.meeting || ''}
-          onChange={(e) => onUpdate(index, 'meeting', parseInt(e.target.value) || 0)}
-          className="w-16 px-2 py-1.5 border border-gray-200 rounded text-sm text-center"
-        />
-      </td>
-      <td className="px-3 py-2">
-        <input
-          type="text"
-          value={cell.note}
-          onChange={(e) => onUpdate(index, 'note', e.target.value)}
-          className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm"
-        />
-      </td>
-      <td className="px-3 py-2">
-        <button type="button" onClick={() => onRemove(index)} className="text-gray-400 hover:text-red-500">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </td>
-    </tr>
-  )
-})
-
-// 메모이제이션된 새신자 행 컴포넌트 (데스크톱용)
-const NewcomerRowDesktop = memo(function NewcomerRowDesktop({
-  newcomer,
-  index,
-  onUpdate,
-  onRemove,
-}: {
-  newcomer: Newcomer
-  index: number
-  onUpdate: (index: number, field: keyof Newcomer, value: string) => void
-  onRemove: (index: number) => void
-}) {
-  return (
-    <tr>
-      <td className="px-2 py-2">
-        <input
-          type="text"
-          value={newcomer.name}
-          onChange={(e) => onUpdate(index, 'name', e.target.value)}
-          className="w-20 px-2 py-1.5 border border-gray-200 rounded text-sm"
-        />
-      </td>
-      <td className="px-2 py-2">
-        <input
-          type="tel"
-          value={newcomer.phone}
-          onChange={(e) => onUpdate(index, 'phone', e.target.value)}
-          placeholder="010-0000-0000"
-          className="w-28 px-2 py-1.5 border border-gray-200 rounded text-sm"
-        />
-      </td>
-      <td className="px-2 py-2">
-        <input
-          type="date"
-          value={newcomer.birth_date}
-          onChange={(e) => onUpdate(index, 'birth_date', e.target.value)}
-          className="w-32 px-2 py-1.5 border border-gray-200 rounded text-sm"
-        />
-      </td>
-      <td className="px-2 py-2">
-        <input
-          type="text"
-          value={newcomer.introducer}
-          onChange={(e) => onUpdate(index, 'introducer', e.target.value)}
-          className="w-20 px-2 py-1.5 border border-gray-200 rounded text-sm"
-        />
-      </td>
-      <td className="px-2 py-2">
-        <input
-          type="text"
-          value={newcomer.address}
-          onChange={(e) => onUpdate(index, 'address', e.target.value)}
-          className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm"
-        />
-      </td>
-      <td className="px-2 py-2">
-        <input
-          type="text"
-          value={newcomer.affiliation}
-          onChange={(e) => onUpdate(index, 'affiliation', e.target.value)}
-          className="w-24 px-2 py-1.5 border border-gray-200 rounded text-sm"
-        />
-      </td>
-      <td className="px-2 py-2">
-        <button type="button" onClick={() => onRemove(index)} className="text-gray-400 hover:text-red-500">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </td>
-    </tr>
-  )
-})
-
-// 모바일용 새신자 카드 컴포넌트
-const NewcomerCardMobile = memo(function NewcomerCardMobile({
-  newcomer,
-  index,
-  onUpdate,
-  onRemove,
-}: {
-  newcomer: Newcomer
-  index: number
-  onUpdate: (index: number, field: keyof Newcomer, value: string) => void
-  onRemove: (index: number) => void
-}) {
-  return (
-    <div className="border border-gray-200 rounded-lg p-3 space-y-3">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-gray-500">새신자 {index + 1}</span>
-        <button type="button" onClick={() => onRemove(index)} className="text-gray-400 hover:text-red-500">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-xs text-gray-500">이름 *</label>
-          <input
-            type="text"
-            value={newcomer.name}
-            onChange={(e) => onUpdate(index, 'name', e.target.value)}
-            className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm"
-          />
-        </div>
-        <div>
-          <label className="text-xs text-gray-500">연락처</label>
-          <input
-            type="tel"
-            value={newcomer.phone}
-            onChange={(e) => onUpdate(index, 'phone', e.target.value)}
-            placeholder="010-0000-0000"
-            className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm"
-          />
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-xs text-gray-500">생년월일</label>
-          <input
-            type="date"
-            value={newcomer.birth_date}
-            onChange={(e) => onUpdate(index, 'birth_date', e.target.value)}
-            className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm"
-          />
-        </div>
-        <div>
-          <label className="text-xs text-gray-500">인도자</label>
-          <input
-            type="text"
-            value={newcomer.introducer}
-            onChange={(e) => onUpdate(index, 'introducer', e.target.value)}
-            className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm"
-          />
-        </div>
-      </div>
-      <div>
-        <label className="text-xs text-gray-500">주소</label>
-        <input
-          type="text"
-          value={newcomer.address}
-          onChange={(e) => onUpdate(index, 'address', e.target.value)}
-          className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm"
-        />
-      </div>
-      <div>
-        <label className="text-xs text-gray-500">소속(직업)</label>
-        <input
-          type="text"
-          value={newcomer.affiliation}
-          onChange={(e) => onUpdate(index, 'affiliation', e.target.value)}
-          className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm"
-        />
-      </div>
-    </div>
-  )
-})
 
 // 섹션 정의
 const SECTIONS = [
@@ -501,6 +97,7 @@ export default function ReportForm({
 }: ReportFormProps) {
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
+  const toast = useToastContext()
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -616,7 +213,6 @@ export default function ReportForm({
     meeting: 0,
   })
 
-
   // 부서 변경 시 출결 데이터 로드 (주차 보고서만)
   useEffect(() => {
     if (reportType !== 'weekly') return
@@ -668,7 +264,7 @@ export default function ReportForm({
     loadData()
   }, [form.department_id, form.report_date, supabase, reportType])
 
-  // 프로그램 관리 (useCallback으로 최적화)
+  // 프로그램 관리
   const addProgram = useCallback(() => {
     setPrograms(prev => [...prev, { start_time: '', end_time: '', content: '', person_in_charge: '', note: '', order_index: prev.length }])
   }, [])
@@ -681,7 +277,7 @@ export default function ReportForm({
     setPrograms(prev => prev.map((p, i) => (i === index ? { ...p, [field]: value } : p)))
   }, [])
 
-  // 셀 출결 관리 (주차 보고서만) (useCallback으로 최적화)
+  // 셀 출결 관리
   const addCellAttendance = useCallback(() => {
     setCellAttendance(prev => [...prev, { cell_name: '', registered: 0, worship: 0, meeting: 0, note: '' }])
   }, [])
@@ -694,7 +290,7 @@ export default function ReportForm({
     setCellAttendance(prev => prev.map((c, i) => (i === index ? { ...c, [field]: value } : c)))
   }, [])
 
-  // 새신자 관리 (주차 보고서만) (useCallback으로 최적화)
+  // 새신자 관리
   const addNewcomer = useCallback(() => {
     setNewcomers(prev => [...prev, { name: '', phone: '', birth_date: '', introducer: '', address: '', affiliation: '' }])
   }, [])
@@ -715,7 +311,7 @@ export default function ReportForm({
     // 최대 10장 제한
     const totalPhotos = photoFiles.length + files.length
     if (totalPhotos > 10) {
-      alert('사진은 최대 10장까지 첨부할 수 있습니다.')
+      toast.warning('사진은 최대 10장까지 첨부할 수 있습니다.')
       return
     }
 
@@ -913,6 +509,11 @@ export default function ReportForm({
     return SECTIONS.filter(s => !['attendance', 'newcomer'].includes(s.id))
   }, [reportType])
 
+  // sectionRef 콜백 생성
+  const setSectionRef = useCallback((key: string) => (el: HTMLDivElement | null) => {
+    sectionRefs.current[key] = el
+  }, [])
+
   return (
     <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-4 md:space-y-6">
       {/* 스티키 섹션 네비게이션 (모바일만) */}
@@ -1034,60 +635,18 @@ export default function ReportForm({
       </div>
 
       {/* 진행순서 */}
-      <div
-        ref={(el) => { sectionRefs.current['program'] = el }}
-        data-section="program"
-        className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 md:p-6 scroll-mt-24"
-      >
-        <div className="flex items-center justify-between mb-3 md:mb-4">
-          <h2 className="font-semibold text-gray-900 text-base md:text-lg">진행순서</h2>
-          <button type="button" onClick={addProgram} className="text-xs md:text-sm text-blue-600 hover:text-blue-700 font-medium">
-            + 항목 추가
-          </button>
-        </div>
+      <ProgramTable
+        programs={programs}
+        onAdd={addProgram}
+        onUpdate={updateProgram}
+        onRemove={removeProgram}
+        sectionRef={setSectionRef('program')}
+      />
 
-        {/* 모바일: 카드 형식 */}
-        <div className="md:hidden space-y-3">
-          {programs.map((program, index) => (
-            <ProgramCardMobile
-              key={index}
-              program={program}
-              index={index}
-              onUpdate={updateProgram}
-              onRemove={removeProgram}
-            />
-          ))}
-        </div>
-
-        {/* 데스크톱: 테이블 형식 */}
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50">
-                <th className="px-2 py-2 text-left font-medium text-gray-600">시간</th>
-                <th className="px-2 py-2 text-left font-medium text-gray-600">내용</th>
-                <th className="px-2 py-2 text-left font-medium text-gray-600">담당</th>
-                <th className="px-2 py-2 text-left font-medium text-gray-600">비고</th>
-                <th className="px-2 py-2 w-10"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {programs.map((program, index) => (
-                <ProgramRowDesktop
-                  key={index}
-                  program={program}
-                  index={index}
-                  onUpdate={updateProgram}
-                  onRemove={removeProgram}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* 말씀 정보 (주차 보고서만) */}
-        {reportType === 'weekly' && (
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {/* 말씀 정보 (주차 보고서만) */}
+      {reportType === 'weekly' && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 md:p-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">말씀 제목</label>
               <input
@@ -1109,10 +668,10 @@ export default function ReportForm({
               />
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* 주요내용 (모임 보고서) / 교육명 (교육 보고서) */}
+      {/* 주요내용 (모임/교육 보고서) */}
       {reportType !== 'weekly' && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 md:p-6">
           <label className="block font-semibold text-gray-900 mb-2 text-sm md:text-base">
@@ -1129,180 +688,37 @@ export default function ReportForm({
 
       {/* 출결상황 (주차 보고서만) */}
       {reportType === 'weekly' && (
-        <div
-          ref={(el) => { sectionRefs.current['attendance'] = el }}
-          data-section="attendance"
-          className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 md:p-6 scroll-mt-24"
-        >
-          <div className="flex items-center justify-between mb-3 md:mb-4">
-            <h2 className="font-semibold text-gray-900 text-base md:text-lg">출결상황</h2>
-            <button type="button" onClick={addCellAttendance} className="text-xs md:text-sm text-blue-600 hover:text-blue-700 font-medium">
-              + 셀 추가
-            </button>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50">
-                  <th className="px-3 py-2 text-left font-medium text-gray-600">구분(셀)</th>
-                  <th className="px-3 py-2 text-center font-medium text-gray-600">재적</th>
-                  <th className="px-3 py-2 text-center font-medium text-gray-600" colSpan={2}>출석</th>
-                  <th className="px-3 py-2 text-left font-medium text-gray-600">참고사항</th>
-                  <th className="px-3 py-2 w-10"></th>
-                </tr>
-                <tr className="bg-gray-50">
-                  <th></th>
-                  <th></th>
-                  <th className="px-3 py-1 text-center text-xs text-gray-500">예배</th>
-                  <th className="px-3 py-1 text-center text-xs text-gray-500">CU</th>
-                  <th></th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {cellAttendance.map((cell, index) => (
-                  <CellAttendanceRow
-                    key={index}
-                    cell={cell}
-                    index={index}
-                    onUpdate={updateCellAttendance}
-                    onRemove={removeCellAttendance}
-                  />
-                ))}
-                {/* 합계 */}
-                <tr className="bg-blue-50 font-medium">
-                  <td className="px-3 py-2 text-gray-700">합계</td>
-                  <td className="px-3 py-2 text-center text-gray-900">
-                    {cellAttendance.reduce((sum, c) => sum + c.registered, 0) || attendanceSummary.total}
-                  </td>
-                  <td className="px-3 py-2 text-center text-blue-700">
-                    {cellAttendance.reduce((sum, c) => sum + c.worship, 0) || attendanceSummary.worship}
-                  </td>
-                  <td className="px-3 py-2 text-center text-green-700">
-                    {cellAttendance.reduce((sum, c) => sum + c.meeting, 0) || attendanceSummary.meeting}
-                  </td>
-                  <td colSpan={2}></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <AttendanceInput
+          cellAttendance={cellAttendance}
+          attendanceSummary={attendanceSummary}
+          onAdd={addCellAttendance}
+          onUpdate={updateCellAttendance}
+          onRemove={removeCellAttendance}
+          sectionRef={setSectionRef('attendance')}
+        />
       )}
 
       {/* 새신자 명단 (주차 보고서만) */}
       {reportType === 'weekly' && (
-        <div
-          ref={(el) => { sectionRefs.current['newcomer'] = el }}
-          data-section="newcomer"
-          className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 md:p-6 scroll-mt-24"
-        >
-          <div className="flex items-center justify-between mb-3 md:mb-4">
-            <h2 className="font-semibold text-gray-900 text-base md:text-lg">새신자 명단</h2>
-            <button type="button" onClick={addNewcomer} className="text-xs md:text-sm text-blue-600 hover:text-blue-700 font-medium">
-              + 새신자 추가
-            </button>
-          </div>
-
-          {newcomers.length > 0 ? (
-            <>
-              {/* 모바일: 카드 형식 */}
-              <div className="md:hidden space-y-3">
-                {newcomers.map((newcomer, index) => (
-                  <NewcomerCardMobile
-                    key={index}
-                    newcomer={newcomer}
-                    index={index}
-                    onUpdate={updateNewcomer}
-                    onRemove={removeNewcomer}
-                  />
-                ))}
-              </div>
-
-              {/* 데스크톱: 테이블 형식 */}
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-gray-50">
-                      <th className="px-2 py-2 text-left font-medium text-gray-600">이름</th>
-                      <th className="px-2 py-2 text-left font-medium text-gray-600">연락처</th>
-                      <th className="px-2 py-2 text-left font-medium text-gray-600">생년월일</th>
-                      <th className="px-2 py-2 text-left font-medium text-gray-600">인도자</th>
-                      <th className="px-2 py-2 text-left font-medium text-gray-600">주소</th>
-                      <th className="px-2 py-2 text-left font-medium text-gray-600">소속(직업)</th>
-                      <th className="px-2 py-2 w-10"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {newcomers.map((newcomer, index) => (
-                      <NewcomerRowDesktop
-                        key={index}
-                        newcomer={newcomer}
-                        index={index}
-                        onUpdate={updateNewcomer}
-                        onRemove={removeNewcomer}
-                      />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          ) : (
-            <p className="text-gray-500 text-sm text-center py-4">새신자가 없습니다</p>
-          )}
-        </div>
+        <NewcomerSection
+          newcomers={newcomers}
+          onAdd={addNewcomer}
+          onUpdate={updateNewcomer}
+          onRemove={removeNewcomer}
+          sectionRef={setSectionRef('newcomer')}
+        />
       )}
 
       {/* 사진 첨부 */}
-      <div
-        ref={(el) => { sectionRefs.current['photos'] = el }}
-        data-section="photos"
-        className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 md:p-6 scroll-mt-24"
-      >
-        <div className="flex items-center justify-between mb-3 md:mb-4">
-          <h2 className="font-semibold text-gray-900 text-base md:text-lg">사진 첨부</h2>
-          <span className="text-xs text-gray-500">{photoFiles.length}/10장</span>
-        </div>
+      <PhotoUploadSection
+        photoFiles={photoFiles}
+        photoPreviews={photoPreviews}
+        onPhotoAdd={handlePhotoAdd}
+        onPhotoRemove={removePhoto}
+        sectionRef={setSectionRef('photos')}
+      />
 
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 md:gap-3">
-          {/* 미리보기 */}
-          {photoPreviews.map((preview, index) => (
-            <div key={index} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100">
-              <img src={preview} alt={`사진 ${index + 1}`} className="w-full h-full object-cover" />
-              <button
-                type="button"
-                onClick={() => removePhoto(index)}
-                className="absolute top-1 right-1 w-6 h-6 bg-black/50 text-white rounded-full flex items-center justify-center hover:bg-black/70"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          ))}
-
-          {/* 추가 버튼 */}
-          {photoFiles.length < 10 && (
-            <label className="aspect-square rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors">
-              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              <span className="text-xs text-gray-500 mt-1">추가</span>
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={handlePhotoAdd}
-                className="hidden"
-              />
-            </label>
-          )}
-        </div>
-
-        <p className="text-xs text-gray-500 mt-2">활동 사진을 첨부하세요 (최대 10장)</p>
-      </div>
-
-      {/* 논의사항 / 기타사항 또는 적용점 / 기타사항 */}
+      {/* 논의사항 / 기타사항 */}
       <div
         ref={(el) => { sectionRefs.current['notes'] = el }}
         data-section="notes"

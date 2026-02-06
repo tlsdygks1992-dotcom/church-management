@@ -52,36 +52,8 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // 로그인된 사용자의 승인 상태 확인
-  if (user && isProtectedPath) {
-    const { data: userData } = await supabase
-      .from('users')
-      .select('is_active')
-      .eq('id', user.id)
-      .single()
-
-    // 미승인 사용자는 승인 대기 페이지로 리디렉션
-    if (userData && !userData.is_active) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/pending'
-      return NextResponse.redirect(url)
-    }
-  }
-
-  // 승인된 사용자가 pending 페이지 접근 시 대시보드로 리디렉션
-  if (user && isPendingPage) {
-    const { data: userData } = await supabase
-      .from('users')
-      .select('is_active')
-      .eq('id', user.id)
-      .single()
-
-    if (userData?.is_active) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/dashboard'
-      return NextResponse.redirect(url)
-    }
-  }
+  // 승인 상태 확인은 layout에서 처리 (미들웨어 성능 최적화)
+  // is_active 체크를 위한 추가 DB 호출 제거
 
   return supabaseResponse
 }

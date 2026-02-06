@@ -38,17 +38,15 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: str
 }
 
 const ROLE_STATUS_MAP: Record<string, string> = {
-  super_admin: 'submitted',
-  president: 'submitted',
-  manager: 'coordinator_reviewed',
-  pastor: 'manager_approved',
+  super_admin: 'manager_approved',  // 목사: 최종 확인 대기
+  president: 'submitted',           // 회장: 협조 대기
+  accountant: 'coordinator_reviewed', // 부장: 결재 대기
 }
 
 const ROLE_LABELS: Record<string, string> = {
-  super_admin: '전체',
+  super_admin: '확인',
   president: '협조',
-  manager: '결재',
-  pastor: '확인',
+  accountant: '결재',
 }
 
 // Supabase 쿼리 결과를 Report 타입으로 변환
@@ -142,10 +140,8 @@ export default function ApprovalsPage() {
       completedQuery = completedQuery.eq('status', 'final_approved')
     } else if (userData.role === 'president') {
       completedQuery = completedQuery.in('status', ['coordinator_reviewed', 'manager_approved', 'final_approved'])
-    } else if (userData.role === 'manager') {
+    } else if (userData.role === 'accountant') {
       completedQuery = completedQuery.in('status', ['manager_approved', 'final_approved'])
-    } else if (userData.role === 'pastor') {
-      completedQuery = completedQuery.eq('status', 'final_approved')
     }
 
     const { data: completed } = await completedQuery
@@ -180,7 +176,7 @@ export default function ApprovalsPage() {
     )
   }
 
-  if (!userRole || !['super_admin', 'president', 'manager', 'pastor'].includes(userRole)) {
+  if (!userRole || !['super_admin', 'president', 'accountant'].includes(userRole)) {
     return (
       <div className="p-4 md:p-6">
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 md:p-6 text-center">
@@ -277,7 +273,7 @@ export default function ApprovalsPage() {
             <div>
               <p className="text-xs md:text-sm text-gray-500">내 역할</p>
               <p className="text-lg md:text-xl font-bold text-gray-900">
-                {userRole === 'president' ? '회장' : userRole === 'manager' ? '부장' : '목사'}
+                {userRole === 'president' ? '회장' : userRole === 'accountant' ? '부장' : '목사'}
               </p>
             </div>
           </div>

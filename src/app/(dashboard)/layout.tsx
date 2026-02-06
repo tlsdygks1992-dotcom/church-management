@@ -2,25 +2,9 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import Sidebar from '@/components/layout/Sidebar'
 import Header from '@/components/layout/Header'
-
-interface UserDepartment {
-  department_id: string
-  is_team_leader: boolean
-  departments: {
-    id: string
-    name: string
-    code: string
-  }
-}
-
-interface UserData {
-  id: string
-  name: string
-  role: string
-  is_active: boolean
-  departments: { name: string } | null
-  user_departments: UserDepartment[]
-}
+import { AuthProvider } from '@/providers/AuthProvider'
+import { ToastProvider } from '@/providers/ToastProvider'
+import type { UserData } from '@/types/shared'
 
 export default async function DashboardLayout({
   children,
@@ -53,21 +37,25 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* 모바일 헤더 */}
-      <Header user={userInfo} />
+    <AuthProvider user={userInfo}>
+      <ToastProvider>
+        <div className="min-h-screen bg-gray-50">
+          {/* 모바일 헤더 */}
+          <Header />
 
-      <div className="flex">
-        {/* 사이드바 (데스크탑) */}
-        <Sidebar user={userInfo} />
+          <div className="flex">
+            {/* 사이드바 (데스크탑) */}
+            <Sidebar />
 
-        {/* 메인 컨텐츠 */}
-        <main className="flex-1 lg:ml-64">
-          <div className="p-4 lg:p-8 pt-[calc(5rem+env(safe-area-inset-top))] lg:pt-8 pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-8">
-            {children}
+            {/* 메인 컨텐츠 */}
+            <main className="flex-1 lg:ml-64">
+              <div className="p-4 lg:p-8 pt-[calc(5rem+env(safe-area-inset-top))] lg:pt-8 pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-8">
+                {children}
+              </div>
+            </main>
           </div>
-        </main>
-      </div>
-    </div>
+        </div>
+      </ToastProvider>
+    </AuthProvider>
   )
 }

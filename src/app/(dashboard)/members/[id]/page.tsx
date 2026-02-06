@@ -4,6 +4,16 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+import Image from 'next/image'
+
+interface MemberDepartmentData {
+  department_id: string
+  is_primary: boolean
+  departments: {
+    id: string
+    name: string
+  }
+}
 
 interface Member {
   id: string
@@ -12,10 +22,8 @@ interface Member {
   email: string | null
   birth_date: string | null
   photo_url: string | null
-  department_id: string
-  departments: {
-    name: string
-  }
+  department_id: string | null
+  member_departments: MemberDepartmentData[]
 }
 
 export default function MemberDetailPage() {
@@ -27,6 +35,7 @@ export default function MemberDetailPage() {
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [canEdit, setCanEdit] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
 
@@ -38,9 +47,25 @@ export default function MemberDetailPage() {
   }, [params.id])
 
   const loadMember = async () => {
+    // 현재 사용자 권한 확인
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data: userData } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', user.id)
+        .single()
+
+      // 관리자 권한 체크 (super_admin, president, accountant, team_leader)
+      const adminRoles = ['super_admin', 'president', 'accountant', 'team_leader']
+      if (userData && adminRoles.includes(userData.role)) {
+        setCanEdit(true)
+      }
+    }
+
     const { data, error } = await supabase
       .from('members')
-      .select('*, departments(name)')
+      .select('id, name, phone, email, birth_date, photo_url, department_id, member_departments(department_id, is_primary, departments(id, name))')
       .eq('id', params.id)
       .single()
 
@@ -160,12 +185,15 @@ export default function MemberDetailPage() {
         {/* 사진 영역 */}
         <div className="bg-gradient-to-br from-slate-100 to-slate-200 p-8 flex flex-col items-center">
           <div className="relative">
-            <div className="w-40 h-40 rounded-full overflow-hidden bg-white shadow-lg">
+            <div className="w-40 h-40 rounded-full overflow-hidden bg-white shadow-lg relative">
               {member.photo_url ? (
-                <img
+                <Image
                   src={member.photo_url.includes('?') ? member.photo_url : `${member.photo_url}?t=${Date.now()}`}
                   alt={member.name}
-                  className="w-full h-full object-cover"
+                  fill
+                  sizes="160px"
+                  className="object-cover"
+                  priority
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-200 to-gray-300">
@@ -201,7 +229,21 @@ export default function MemberDetailPage() {
           </div>
 
           <h1 className="text-2xl font-bold text-gray-900 mt-4">{member.name}</h1>
-          <p className="text-gray-600">{member.departments?.name}</p>
+          <div className="flex flex-wrap gap-2 mt-2 justify-center">
+            {member.member_departments?.map((md) => (
+              <span
+                key={md.department_id}
+                className={`px-3 py-1 rounded-full text-sm ${
+                  md.is_primary
+                    ? 'bg-blue-100 text-blue-700 font-medium'
+                    : 'bg-gray-100 text-gray-600'
+                }`}
+              >
+                {md.departments?.name}
+                {md.is_primary && ' (주)'}
+              </span>
+            ))}
+          </div>
 
           {message && (
             <p className={`mt-3 text-sm ${message.includes('실패') ? 'text-red-600' : 'text-green-600'}`}>
@@ -247,6 +289,21 @@ export default function MemberDetailPage() {
               <p className="font-medium">{member.email || '-'}</p>
             </div>
           </div>
+
+          {/* 수정 버튼 (관리자만) */}
+          {canEdit && (
+            <div className="pt-4 border-t border-gray-100">
+              <Link
+                href={`/members/${member.id}/edit`}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                정보 수정
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useQueryClient } from '@tanstack/react-query'
+import { useNotifications, useUnreadCount, useMarkAsRead, useMarkAllAsRead } from '@/queries/notifications'
 import NotificationItem from './NotificationItem'
 import type { Notification } from '@/types/database'
 
@@ -11,67 +13,31 @@ interface NotificationBellProps {
 
 export default function NotificationBell({ userId }: NotificationBellProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const [notifications, setNotifications] = useState<Notification[]>([])
-  const [unreadCount, setUnreadCount] = useState(0)
-  const [loading, setLoading] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const supabase = useMemo(() => createClient(), [])
+  const queryClient = useQueryClient()
 
-  // 알림 목록 조회
-  const fetchNotifications = useCallback(async () => {
-    setLoading(true)
-    try {
-      const res = await fetch('/api/notifications?limit=20')
-      if (res.ok) {
-        const data = await res.json()
-        setNotifications(data.notifications || [])
-        setUnreadCount(data.unreadCount || 0)
-      }
-    } catch (error) {
-      console.error('Failed to fetch notifications:', error)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  // TanStack Query 훅으로 데이터 관리
+  const { data: notifications = [], isLoading } = useNotifications(userId, 20)
+  const { data: unreadCount = 0 } = useUnreadCount(userId)
+  const markAsReadMutation = useMarkAsRead()
+  const markAllAsReadMutation = useMarkAllAsRead()
 
-  // 초기 로드 및 실시간 구독
+  // Supabase 실시간 구독 (즉시 업데이트용)
   useEffect(() => {
-    fetchNotifications()
-
-    // Supabase 실시간 구독
     const channel = supabase
       .channel(`notifications:${userId}`)
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*',
           schema: 'public',
           table: 'notifications',
           filter: `user_id=eq.${userId}`,
         },
-        (payload: { new: Notification }) => {
-          const newNotification = payload.new
-          setNotifications((prev) => [newNotification, ...prev])
-          setUnreadCount((prev) => prev + 1)
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${userId}`,
-        },
-        (payload: { new: Notification; old: Notification | null }) => {
-          const updated = payload.new
-          setNotifications((prev) =>
-            prev.map((n) => (n.id === updated.id ? updated : n))
-          )
-          // 읽음 처리 된 경우 카운트 감소
-          if (updated.is_read && !payload.old?.is_read) {
-            setUnreadCount((prev) => Math.max(0, prev - 1))
-          }
+        () => {
+          // 실시간 변경 시 쿼리 캐시 무효화 → 리페치
+          queryClient.invalidateQueries({ queryKey: ['notifications'] })
         }
       )
       .subscribe()
@@ -79,7 +45,7 @@ export default function NotificationBell({ userId }: NotificationBellProps) {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [userId, supabase, fetchNotifications])
+  }, [userId, supabase, queryClient])
 
   // 외부 클릭 시 닫기
   useEffect(() => {
@@ -93,54 +59,15 @@ export default function NotificationBell({ userId }: NotificationBellProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // 개별 알림 읽음 처리 (낙관적 업데이트)
-  const handleRead = useCallback(async (notificationId: string) => {
-    // 낙관적 업데이트 - 즉시 UI 반영
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === notificationId ? { ...n, is_read: true } : n))
-    )
-    setUnreadCount((prev) => Math.max(0, prev - 1))
+  // 개별 알림 읽음 처리
+  const handleRead = useCallback((notificationId: string) => {
+    markAsReadMutation.mutate([notificationId])
+  }, [markAsReadMutation])
 
-    // 백그라운드에서 API 호출
-    try {
-      await fetch('/api/notifications', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notification_ids: [notificationId] }),
-      })
-    } catch (error) {
-      // 실패 시 롤백
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === notificationId ? { ...n, is_read: false } : n))
-      )
-      setUnreadCount((prev) => prev + 1)
-      console.error('Failed to mark as read:', error)
-    }
-  }, [])
-
-  // 모두 읽음 처리 (낙관적 업데이트)
-  const handleMarkAllRead = useCallback(async () => {
-    // 이전 상태 저장 (롤백용)
-    const prevNotifications = notifications
-    const prevCount = unreadCount
-
-    // 낙관적 업데이트
-    setUnreadCount(0)
-    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })))
-
-    try {
-      await fetch('/api/notifications', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mark_all_read: true }),
-      })
-    } catch (error) {
-      // 실패 시 롤백
-      setNotifications(prevNotifications)
-      setUnreadCount(prevCount)
-      console.error('Failed to mark all as read:', error)
-    }
-  }, [notifications, unreadCount])
+  // 모두 읽음 처리
+  const handleMarkAllRead = useCallback(() => {
+    markAllAsReadMutation.mutate(userId)
+  }, [markAllAsReadMutation, userId])
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -179,7 +106,7 @@ export default function NotificationBell({ userId }: NotificationBellProps) {
 
           {/* 알림 목록 */}
           <div className="overflow-y-auto max-h-[calc(70vh-56px)]">
-            {loading ? (
+            {isLoading ? (
               <div className="flex items-center justify-center py-8">
                 <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
               </div>

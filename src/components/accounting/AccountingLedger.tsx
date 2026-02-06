@@ -1,8 +1,9 @@
 'use client'
 
 import { AccountingRecordWithDetails } from '@/types/database'
-import { createClient } from '@/lib/supabase/client'
 import { useState, useCallback } from 'react'
+import { useDeleteAccountingRecords } from '@/queries/accounting'
+import { useToastContext } from '@/providers/ToastProvider'
 
 interface AccountingLedgerProps {
   records: AccountingRecordWithDetails[]
@@ -13,7 +14,8 @@ interface AccountingLedgerProps {
 export default function AccountingLedger({ records, onRecordDeleted, canEdit }: AccountingLedgerProps) {
   const [deleting, setDeleting] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [bulkDeleting, setBulkDeleting] = useState(false)
+  const deleteRecordsMutation = useDeleteAccountingRecords()
+  const toast = useToastContext()
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr)
@@ -51,25 +53,22 @@ export default function AccountingLedger({ records, onRecordDeleted, canEdit }: 
     if (!confirm('정말 삭제하시겠습니까?')) return
 
     setDeleting(id)
-    const supabase = createClient()
-
-    const { error } = await supabase
-      .from('accounting_records')
-      .delete()
-      .eq('id', id)
-
-    if (error) {
-      alert('삭제 중 오류가 발생했습니다.')
-      console.error(error)
-    } else {
-      setSelectedIds(prev => {
-        const next = new Set(prev)
-        next.delete(id)
-        return next
-      })
-      onRecordDeleted()
-    }
-    setDeleting(null)
+    deleteRecordsMutation.mutate([id], {
+      onSuccess: () => {
+        setSelectedIds(prev => {
+          const next = new Set(prev)
+          next.delete(id)
+          return next
+        })
+        onRecordDeleted()
+        setDeleting(null)
+      },
+      onError: (error) => {
+        toast.error('삭제 중 오류가 발생했습니다.')
+        console.error(error)
+        setDeleting(null)
+      },
+    })
   }
 
   // 선택 항목 일괄 삭제
@@ -77,22 +76,16 @@ export default function AccountingLedger({ records, onRecordDeleted, canEdit }: 
     if (selectedIds.size === 0) return
     if (!confirm(`선택한 ${selectedIds.size}개 항목을 삭제하시겠습니까?`)) return
 
-    setBulkDeleting(true)
-    const supabase = createClient()
-
-    const { error } = await supabase
-      .from('accounting_records')
-      .delete()
-      .in('id', Array.from(selectedIds))
-
-    if (error) {
-      alert('삭제 중 오류가 발생했습니다.')
-      console.error(error)
-    } else {
-      setSelectedIds(new Set())
-      onRecordDeleted()
-    }
-    setBulkDeleting(false)
+    deleteRecordsMutation.mutate(Array.from(selectedIds), {
+      onSuccess: () => {
+        setSelectedIds(new Set())
+        onRecordDeleted()
+      },
+      onError: (error) => {
+        toast.error('삭제 중 오류가 발생했습니다.')
+        console.error(error)
+      },
+    })
   }
 
   // 잔액 계산 (누적)
@@ -127,10 +120,10 @@ export default function AccountingLedger({ records, onRecordDeleted, canEdit }: 
           </span>
           <button
             onClick={handleBulkDelete}
-            disabled={bulkDeleting}
+            disabled={deleteRecordsMutation.isPending}
             className="px-3 py-1.5 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50"
           >
-            {bulkDeleting ? '삭제 중...' : '선택 삭제'}
+            {deleteRecordsMutation.isPending ? '삭제 중...' : '선택 삭제'}
           </button>
         </div>
       )}
