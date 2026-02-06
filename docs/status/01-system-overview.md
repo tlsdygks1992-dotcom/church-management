@@ -37,6 +37,7 @@
 ```
 @supabase/supabase-js       # Supabase 클라이언트
 @supabase/ssr               # 서버 사이드 Supabase
+@tanstack/react-query       # 서버 상태 관리
 recharts                    # 차트 라이브러리
 @tiptap/react               # 리치 텍스트 에디터
 xlsx                        # 엑셀 내보내기
@@ -113,20 +114,43 @@ src/
 │   └── api/                      # API 라우트
 │       └── notifications/        # 알림 API
 ├── components/                   # React 컴포넌트
-│   ├── layout/                   # Header, Sidebar
-│   ├── reports/                  # 보고서 관련
-│   ├── members/                  # 교인 관련
+│   ├── layout/                   # Header, Sidebar (useAuth() 사용)
+│   ├── reports/                  # ReportForm + 서브컴포넌트 4개
+│   ├── members/                  # MemberForm + 서브컴포넌트 6개
+│   ├── accounting/               # 회계장부, 지출결의서
 │   ├── attendance/               # 출결 관련
+│   ├── dashboard/                # 대시보드 위젯
 │   ├── stats/                    # 통계 차트
 │   ├── users/                    # 사용자 관리
 │   ├── notifications/            # 알림
-│   └── ui/                       # 공용 UI
+│   └── ui/                       # Toast, ErrorBoundary 등
+├── providers/                    # Context Providers
+│   ├── AuthProvider.tsx          # useAuth() 인증 Context
+│   ├── QueryProvider.tsx         # TanStack Query Provider
+│   └── ToastProvider.tsx         # 글로벌 Toast Context
+├── queries/                      # TanStack Query 훅
+│   ├── departments.ts            # useDepartments
+│   ├── members.ts                # useMembers, useDeleteMember
+│   ├── reports.ts                # useReports
+│   ├── notifications.ts          # useNotifications
+│   ├── accounting.ts             # useAccounting
+│   └── attendance.ts             # useAttendance
+├── hooks/                        # 커스텀 훅
+│   ├── useDebounce.ts            # 디바운스 훅
+│   └── useToast.ts               # 토스트 알림 훅
 ├── lib/                          # 유틸리티
 │   ├── supabase/                 # Supabase 클라이언트
+│   ├── permissions.ts            # 중앙화된 권한 체크
+│   ├── constants.ts              # 공통 상수
+│   ├── utils.ts                  # 유틸리티 함수
+│   ├── errors.ts                 # 커스텀 에러 클래스
+│   ├── rate-limit.ts             # API rate limiting
+│   ├── query-client.ts           # TanStack Query 설정
 │   ├── notifications.ts          # 알림 유틸리티
 │   └── excel.ts                  # 엑셀 내보내기
 └── types/                        # TypeScript 타입
-    └── database.ts               # DB 스키마 타입
+    ├── database.ts               # DB 스키마 타입
+    └── shared.ts                 # 공유 인터페이스
 ```
 
 ## 개발 명령어
@@ -164,7 +188,10 @@ npx vercel --prod
 ### 적용된 최적화 기법
 
 1. **Supabase 클라이언트 싱글톤** - 인스턴스 재사용으로 메모리 효율화
-2. **Optimistic Updates** - UI 즉시 반영 후 API 호출
-3. **동적 임포트** - Recharts 차트 라이브러리 지연 로딩 (~180KB 절감)
-4. **API 쿼리 병렬화** - Promise.all로 순차 쿼리 병렬 처리
-5. **컴포넌트 메모이제이션** - useMemo, useCallback, React.memo 활용
+2. **TanStack Query** - 서버 상태 캐싱, 자동 재요청, 쿼리 중복 제거
+3. **Optimistic Updates** - UI 즉시 반영 후 API 호출
+4. **동적 임포트** - Recharts 차트 라이브러리 지연 로딩 (~180KB 절감)
+5. **API 쿼리 병렬화** - Promise.all로 순차 쿼리 병렬 처리
+6. **컴포넌트 메모이제이션** - useMemo, useCallback, React.memo 활용
+7. **ErrorBoundary** - 글로벌 + 대시보드 레벨 에러 처리 (error.tsx)
+8. **Toast 알림** - 글로벌 Context로 alert() 대체, UX 향상

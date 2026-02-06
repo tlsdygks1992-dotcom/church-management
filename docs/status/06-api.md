@@ -129,11 +129,98 @@ export async function updateSession(request: NextRequest) {
 
 ---
 
-## 2. API 라우트
+## 2. Providers (Context)
+
+### AuthProvider
+**경로**: `src/providers/AuthProvider.tsx`
+- `useAuth()` 훅으로 현재 사용자 정보 접근
+- Header, Sidebar 등에서 prop drilling 없이 사용
+- dashboard layout.tsx에서 래핑
+
+### QueryProvider
+**경로**: `src/providers/QueryProvider.tsx`
+- TanStack Query 클라이언트 제공
+- `src/lib/query-client.ts`에서 설정 관리
+
+### ToastProvider
+**경로**: `src/providers/ToastProvider.tsx`
+- `useToastContext()` 훅으로 toast.success/error/warning/info 호출
+- 7개 컴포넌트에서 alert() 대체
+
+---
+
+## 3. TanStack Query 훅
+
+**경로**: `src/queries/`
+
+| 파일 | 주요 훅 | 용도 |
+|------|---------|------|
+| `departments.ts` | `useDepartments` | 부서 목록 조회 |
+| `members.ts` | `useMembers`, `useDeleteMember` | 교인 CRUD |
+| `reports.ts` | `useReports` | 보고서 조회 |
+| `notifications.ts` | `useNotifications` | 알림 조회/읽음 |
+| `accounting.ts` | `useAccounting` | 회계 기록 조회 |
+| `attendance.ts` | `useAttendance` | 출결 기록 조회/수정 |
+
+---
+
+## 4. 커스텀 훅
+
+| 훅 | 파일 | 용도 |
+|----|------|------|
+| `useDebounce` | `src/hooks/useDebounce.ts` | 입력 디바운스 |
+| `useToast` | `src/hooks/useToast.ts` | 토스트 알림 관리 |
+
+---
+
+## 5. 유틸리티 라이브러리
+
+### 권한 체크
+**경로**: `src/lib/permissions.ts`
+
+| 함수 | 설명 |
+|------|------|
+| `isAdmin(role)` | super_admin 여부 |
+| `isAdminRole(role)` | super_admin/president/accountant 여부 |
+| `canAccessAllDepartments(role)` | 모든 부서 접근 가능 여부 |
+| `canAccessAccounting(role)` | 회계 기능 접근 가능 여부 |
+| `canEditMembers(role)` | 교인 관리 권한 여부 |
+
+### 공통 상수
+**경로**: `src/lib/constants.ts`
+- `MONTHS` - 월 목록, `MAX_FILE_SIZE` - 업로드 제한
+- 페이지네이션, 라벨 등
+
+### 유틸리티 함수
+**경로**: `src/lib/utils.ts`
+- `formatDate`, `formatPhone`, `formatCurrency`, `getWeekNumber`, `calculateAge`
+
+### 에러 클래스
+**경로**: `src/lib/errors.ts`
+- `AppError`, `ApiError`, `AuthError`, `ForbiddenError`
+
+### Rate Limiting
+**경로**: `src/lib/rate-limit.ts`
+- 토큰 버킷 알고리즘 기반 rate limiter
+- `/api/notifications` GET/PATCH에 적용
+
+### 공유 타입
+**경로**: `src/types/shared.ts`
+- `UserData`, `UserDepartment`, `LayoutUser`
+- `MemberWithDepts`, `MemberDepartmentInfo`
+- `ReportSummary`, `DepartmentInfo`
+
+---
+
+## 6. API 라우트
 
 ### 알림 API
 
 **경로**: `src/app/api/notifications/route.ts`
+
+#### Rate Limiting
+- `checkRateLimit()` 적용 (GET/PATCH 모두)
+- 초과 시 429 Too Many Requests 반환
 
 #### GET - 알림 목록 조회
 
@@ -173,7 +260,7 @@ PATCH /api/notifications
 
 ---
 
-## 3. 유틸리티 함수
+## 7. 기존 유틸리티 함수
 
 ### 알림 유틸리티
 
@@ -268,7 +355,7 @@ exportToExcel(data, columns, '교인명단.xlsx')
 
 ---
 
-## 4. 미들웨어
+## 8. 미들웨어
 
 **경로**: `src/middleware.ts`
 
@@ -295,7 +382,7 @@ export const config = {
 
 ---
 
-## 5. 타입 정의
+## 9. 타입 정의
 
 **경로**: `src/types/database.ts`
 
@@ -370,7 +457,7 @@ export interface MemberWithDepartments extends Member {
 
 ---
 
-## 6. 환경 변수
+## 10. 환경 변수
 
 | 변수 | 설명 | 필수 |
 |------|------|------|
@@ -389,7 +476,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGci...
 
 ---
 
-## 7. 쿼리 패턴
+## 11. 쿼리 패턴
 
 ### 기본 CRUD
 

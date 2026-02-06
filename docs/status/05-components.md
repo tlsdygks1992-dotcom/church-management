@@ -6,14 +6,17 @@
 
 ```
 src/components/
-├── layout/          # 레이아웃 (Header, Sidebar)
-├── reports/         # 보고서 관련
-├── members/         # 교인 관련
-├── attendance/      # 출결 관련
+├── layout/          # Header, Sidebar (useAuth() 사용)
+├── reports/         # ReportForm + ProgramTable, AttendanceInput, NewcomerSection, PhotoUploadSection
+├── members/         # MemberForm + PhotoUploader, DepartmentSelector, MemberFilters, DeleteConfirmModal 등
+├── accounting/      # AccountingLedger, ExpenseRequestForm/List, AccountingRecordForm, AccountingSummary
+├── attendance/      # AttendanceGrid
+├── dashboard/       # DashboardContent
 ├── stats/           # 통계 차트
-├── users/           # 사용자 관리
-├── notifications/   # 알림
-└── ui/              # 공용 UI
+├── users/           # UserManagement
+├── notifications/   # NotificationBell, NotificationItem
+├── pwa/             # ServiceWorkerRegistration, UpdatePrompt
+└── ui/              # Toast, ErrorBoundary, RichTextEditor, Skeleton
 ```
 
 ---
@@ -110,13 +113,16 @@ src/components/
 - RichTextEditor 동적 임포트
 - 초안 저장 / 제출 / 수정
 
-#### 메모이제이션된 서브컴포넌트
+#### 추출된 서브컴포넌트 (Phase 3 리팩토링)
 
-| 컴포넌트 | 용도 |
-|----------|------|
-| ProgramRow | 순서지 행 |
-| CellAttendanceRow | 셀 출석 행 |
-| NewcomerRow | 신입자 행 |
+| 컴포넌트 | 파일 | 용도 |
+|----------|------|------|
+| ProgramTable | `reports/ProgramTable.tsx` | 순서지 테이블 관리 |
+| AttendanceInput | `reports/AttendanceInput.tsx` | 셀별 출석 현황 입력 |
+| NewcomerSection | `reports/NewcomerSection.tsx` | 신입자 정보 섹션 |
+| PhotoUploadSection | `reports/PhotoUploadSection.tsx` | 사진 업로드 섹션 |
+
+공유 타입: `src/components/reports/types.ts` (Program, Newcomer, CellAttendance, TIME_OPTIONS)
 
 ---
 
@@ -209,12 +215,16 @@ src/components/
 - 교인 삭제 (Optimistic Update)
 - 엑셀 내보내기
 
-#### 메모이제이션된 서브컴포넌트
+#### 추출된 서브컴포넌트 (Phase 3 리팩토링)
 
-| 컴포넌트 | 용도 |
-|----------|------|
-| MemberGridCard | 그리드 뷰 카드 |
-| MemberListItem | 리스트 뷰 행 |
+| 컴포넌트 | 파일 | 용도 |
+|----------|------|------|
+| MemberGridCard | `members/MemberGridCard.tsx` | 그리드 뷰 카드 |
+| MemberListItem | `members/MemberListItem.tsx` | 리스트 뷰 행 |
+| MemberFilters | `members/MemberFilters.tsx` | 검색/부서/생일 필터 |
+| DeleteConfirmModal | `members/DeleteConfirmModal.tsx` | 삭제 확인 모달 |
+| PhotoUploader | `members/PhotoUploader.tsx` | 프로필 사진 업로드 |
+| DepartmentSelector | `members/DepartmentSelector.tsx` | 다중 부서 선택 |
 
 ---
 
@@ -482,12 +492,17 @@ App Layout
 │       └── AuthForm (inline)
 │
 └── (dashboard) Layout
-    ├── Header
+    ├── AuthProvider (인증 Context)
+    ├── ToastProvider (Toast Context)
+    ├── QueryProvider (TanStack Query)
+    ├── Header (useAuth())
     │   └── NotificationBell
-    ├── Sidebar
+    ├── Sidebar (useAuth())
     │   └── NotificationBell
+    ├── error.tsx (대시보드 ErrorBoundary)
     │
     ├── dashboard/page
+    │   └── DashboardContent
     │
     ├── attendance/page
     │   └── AttendanceGrid
@@ -496,34 +511,43 @@ App Layout
     ├── reports/page
     ├── reports/new/page
     │   └── ReportForm
-    │       ├── ProgramRow (memoized)
-    │       ├── CellAttendanceRow (memoized)
-    │       ├── NewcomerRow (memoized)
+    │       ├── ProgramTable
+    │       ├── AttendanceInput
+    │       ├── NewcomerSection
+    │       ├── PhotoUploadSection
     │       └── RichTextEditor (dynamic)
     ├── reports/[id]/page
     │   └── ReportDetail
     │
     ├── members/page
     │   └── MemberList
+    │       ├── MemberFilters
     │       ├── MemberGridCard (memoized)
-    │       └── MemberListItem (memoized)
+    │       ├── MemberListItem (memoized)
+    │       └── DeleteConfirmModal
     ├── members/new/page
     │   └── MemberForm
+    │       ├── PhotoUploader
+    │       └── DepartmentSelector
     ├── members/[id]/page
     │   └── MemberForm
     │
+    ├── accounting/ledger/page
+    │   └── AccountingLedger
+    ├── accounting/expense/page
+    │   └── ExpenseRequestList
+    ├── accounting/expense/new/page
+    │   └── ExpenseRequestForm
+    │
     ├── stats/page
     │   └── StatsCharts (dynamic)
-    │       ├── WeeklyTrendChart
-    │       ├── AttendanceDistributionCharts
-    │       └── DepartmentComparisonChart
     │
     ├── approvals/page
     │
     ├── users/page
     │   └── UserManagement
     │
-    └── guide/page
+    └── photos/page
 ```
 
 ---
@@ -534,12 +558,12 @@ App Layout
 
 | 컴포넌트 | 파일 |
 |----------|------|
-| ProgramRow | ReportForm.tsx |
-| CellAttendanceRow | ReportForm.tsx |
-| NewcomerRow | ReportForm.tsx |
+| ProgramTable | reports/ProgramTable.tsx |
+| AttendanceInput | reports/AttendanceInput.tsx |
+| NewcomerSection | reports/NewcomerSection.tsx |
 | MemberRow | AttendanceGrid.tsx |
-| MemberGridCard | MemberList.tsx |
-| MemberListItem | MemberList.tsx |
+| MemberGridCard | members/MemberGridCard.tsx |
+| MemberListItem | members/MemberListItem.tsx |
 
 ### 동적 임포트 (next/dynamic)
 
