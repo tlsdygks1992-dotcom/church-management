@@ -22,7 +22,7 @@ export default async function AttendancePage() {
   const [userResult, allDeptsResult] = await Promise.all([
     supabase
       .from('users')
-      .select('*, departments(id, name, code)')
+      .select('role, user_departments(department_id, departments(id, name, code))')
       .eq('id', user!.id)
       .single(),
     supabase
@@ -33,13 +33,15 @@ export default async function AttendancePage() {
 
   const userData = userResult.data
 
-  // super_admin은 모든 부서 접근 가능, 아니면 자신의 부서만
+  // 관리자는 모든 부서 접근, 비관리자는 소속 부서만
   let departments: Department[] = []
 
   if (userData?.role === 'super_admin' || userData?.role === 'president' || userData?.role === 'accountant') {
     departments = (allDeptsResult.data || []) as Department[]
-  } else if (userData?.departments) {
-    departments = [userData.departments as Department]
+  } else if (userData?.user_departments?.length) {
+    departments = userData.user_departments.map(
+      (ud: any) => ud.departments as Department
+    )
   }
 
   // 기본 부서 (첫 번째 부서)

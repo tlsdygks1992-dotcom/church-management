@@ -41,33 +41,39 @@ export default function AccountingPage() {
 
     setUserId(user.id)
 
-    const { data: userData } = await supabase
-      .from('users')
-      .select('role, department_id')
-      .eq('id', user.id)
-      .single()
+    // 사용자 정보와 소속 부서를 병렬 조회
+    const [userResult, deptResult] = await Promise.all([
+      supabase
+        .from('users')
+        .select('role, user_departments(department_id)')
+        .eq('id', user.id)
+        .single(),
+      supabase
+        .from('departments')
+        .select('*')
+        .order('name')
+    ])
+
+    const userData = userResult.data
+    const deptData = deptResult.data
 
     if (userData) {
       setUserRole(userData.role)
-      setUserDeptId(userData.department_id || '')
+      const deptIds = userData.user_departments?.map((ud: { department_id: string }) => ud.department_id) || []
+      setUserDeptId(deptIds[0] || '')
     }
 
-    // 부서 목록 가져오기
-    const { data: deptData } = await supabase
-      .from('departments')
-      .select('*')
-      .order('name')
-
-    if (deptData) {
+    if (deptData && userData) {
       // 권한에 따라 부서 필터링
-      if (canAccessAllDepartments(userData?.role || '')) {
+      if (canAccessAllDepartments(userData.role || '')) {
         setDepartments(deptData)
         setSelectedDeptId(deptData[0]?.id || '')
       } else {
-        // team_leader는 자기 부서만
-        const filtered = deptData.filter((d: Department) => d.id === userData?.department_id)
+        // 비관리자: 소속 부서만 표시
+        const userDeptIds = userData.user_departments?.map((ud: { department_id: string }) => ud.department_id) || []
+        const filtered = deptData.filter((d: Department) => userDeptIds.includes(d.id))
         setDepartments(filtered)
-        setSelectedDeptId(userData?.department_id || '')
+        setSelectedDeptId(filtered[0]?.id || '')
       }
     }
     setLoading(false)

@@ -30,7 +30,7 @@ interface Props {
   departments: Department[]
   isAdmin: boolean
   canWriteReport: boolean
-  userDepartmentId: string | null
+  userDepartmentIds: string[]
 }
 
 const REPORT_TYPE_CONFIG: Record<ReportType, { label: string; icon: string; color: string }> = {
@@ -44,7 +44,7 @@ export default function ReportListClient({
   departments,
   isAdmin,
   canWriteReport,
-  userDepartmentId
+  userDepartmentIds
 }: Props) {
   const supabase = useMemo(() => createClient(), [])
   const searchParams = useSearchParams()
@@ -66,16 +66,18 @@ export default function ReportListClient({
       .order('report_date', { ascending: false })
       .limit(50)
 
-    if (isAdmin && deptId !== 'all') {
+    if (deptId !== 'all') {
+      // 특정 부서 선택 시
       query = query.eq('department_id', deptId)
-    } else if (!isAdmin && userDepartmentId) {
-      query = query.eq('department_id', userDepartmentId)
+    } else if (!isAdmin && userDepartmentIds.length > 0) {
+      // 비관리자: "전체" 선택 시 소속 부서만
+      query = query.in('department_id', userDepartmentIds)
     }
 
     const { data } = await query
     setReports((data || []) as Report[])
     setLoading(false)
-  }, [supabase, isAdmin, userDepartmentId])
+  }, [supabase, isAdmin, userDepartmentIds])
 
   const handleTypeChange = useCallback((type: ReportType) => {
     router.push(`/reports?type=${type}`)
@@ -130,8 +132,8 @@ export default function ReportListClient({
         })}
       </div>
 
-      {/* 부서 필터 (관리자만) */}
-      {isAdmin && (
+      {/* 부서 필터 (관리자 또는 소속 부서 2개 이상) */}
+      {(isAdmin || departments.length > 1) && (
         <div className="flex gap-2 overflow-x-auto pb-1">
           <button
             onClick={() => handleDeptChange('all')}

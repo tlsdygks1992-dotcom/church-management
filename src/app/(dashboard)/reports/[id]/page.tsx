@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import ReportDetail from '@/components/reports/ReportDetail'
+import { canAccessAllDepartments } from '@/lib/permissions'
 
 interface Props {
   params: Promise<{ id: string }>
@@ -16,6 +17,7 @@ export default async function ReportDetailPage({ params }: Props) {
   // 병렬로 데이터 조회 (성능 최적화)
   const [
     { data: userData },
+    { data: userDepts },
     { data: report },
     { data: programs },
     { data: newcomers },
@@ -27,6 +29,11 @@ export default async function ReportDetailPage({ params }: Props) {
       .select('*')
       .eq('id', user!.id)
       .single(),
+    // 사용자 소속 부서
+    supabase
+      .from('user_departments')
+      .select('department_id')
+      .eq('user_id', user!.id),
     // 보고서 조회
     supabase
       .from('weekly_reports')
@@ -58,6 +65,19 @@ export default async function ReportDetailPage({ params }: Props) {
       .eq('report_id', id)
       .order('created_at', { ascending: false })
   ])
+
+  // 보고서가 없으면 404
+  if (!report) {
+    notFound()
+  }
+
+  // 부서 접근 제한: 비관리자는 소속 부서의 보고서만 열람 가능
+  if (!canAccessAllDepartments(userData?.role || '')) {
+    const userDeptIds = (userDepts || []).map(ud => ud.department_id)
+    if (!userDeptIds.includes(report.department_id)) {
+      notFound()
+    }
+  }
 
   // 권한 체크
   const canApprove = checkApprovalPermission(userData, report)
