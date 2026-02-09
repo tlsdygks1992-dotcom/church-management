@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNotifications, useUnreadCount, useMarkAsRead, useMarkAllAsRead } from '@/queries/notifications'
 import NotificationItem from './NotificationItem'
+import PushPermission from './PushPermission'
 import type { Notification } from '@/types/database'
 
 interface NotificationBellProps {
@@ -129,6 +130,9 @@ export default function NotificationBell({ userId }: NotificationBellProps) {
               </div>
             )}
           </div>
+
+          {/* 푸시 알림 설정 */}
+          <PushPermission userId={userId} />
         </div>
       )}
     </div>

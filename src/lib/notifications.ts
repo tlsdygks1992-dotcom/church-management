@@ -183,13 +183,32 @@ export async function createApprovalNotification(
     return true
   }
 
-  // 알림 생성
-  return createNotifications(supabase, recipientIds, {
+  // 알림 생성 (인앱)
+  const result = await createNotifications(supabase, recipientIds, {
     title,
     body,
     link,
     reportId,
   })
+
+  // 푸시 알림 전송 요청 (서버 API 호출, 실패해도 인앱 알림에 영향 없음)
+  triggerPush(recipientIds, { title, body, link })
+
+  return result
+}
+
+/**
+ * 서버 API를 통해 푸시 알림 전송 (비동기, fire-and-forget)
+ */
+function triggerPush(
+  userIds: string[],
+  payload: { title: string; body: string; link?: string }
+): void {
+  fetch('/api/push/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userIds, ...payload }),
+  }).catch((err) => console.error('Push trigger failed:', err))
 }
 
 /**

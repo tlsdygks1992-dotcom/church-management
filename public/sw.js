@@ -179,6 +179,55 @@ function isStaticAsset(pathname) {
   return staticExtensions.some(ext => pathname.endsWith(ext))
 }
 
+// 푸시 알림 수신
+self.addEventListener('push', (event) => {
+  if (!event.data) return
+
+  let data
+  try {
+    data = event.data.json()
+  } catch {
+    data = { title: '새 알림', body: event.data.text() }
+  }
+
+  const options = {
+    body: data.body || '',
+    icon: data.icon || '/icon-192.png',
+    badge: '/icon-192.png',
+    data: { link: data.link || '/' },
+    vibrate: [200, 100, 200],
+    tag: 'church-notification',
+    renotify: true,
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(data.title || '청파중앙교회', options)
+  )
+})
+
+// 푸시 알림 클릭
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+
+  const link = event.notification.data?.link || '/'
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clients) => {
+        // 이미 열린 탭이 있으면 포커스 + 이동
+        for (const client of clients) {
+          if ('focus' in client) {
+            client.focus()
+            client.navigate(link)
+            return
+          }
+        }
+        // 열린 탭이 없으면 새 창 열기
+        return self.clients.openWindow(link)
+      })
+  )
+})
+
 // 클라이언트에게 업데이트 메시지 전송
 self.addEventListener('message', (event) => {
   if (event.data === 'SKIP_WAITING') {
