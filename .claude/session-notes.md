@@ -1,5 +1,31 @@
 # 세션 노트
 
+## 작업 내역 (2026-02-08)
+
+### 완료된 작업
+1. [교인 사진 일괄 업로드] - 부서별 사진 한번에 업로드 기능
+   - 관련 파일: `src/components/members/BulkPhotoUpload.tsx`, `src/app/(dashboard)/members/bulk-photos/page.tsx`
+   - 파일명 자동 매칭 + 수동 드롭다운 선택, 진행률 표시
+
+2. [보고서 삭제 기능] - 관리자 전용 보고서 삭제
+   - 관련 파일: `src/components/reports/ReportDetail.tsx`, `src/app/(dashboard)/reports/[id]/page.tsx`
+   - 확인 모달, 외래키 순서 삭제
+
+### 진행 중 / 미완료
+- 오늘 변경사항 미커밋 상태 (커밋 + 배포 필요)
+
+### 다음 작업
+- [ ] 커밋 및 Vercel 배포
+- [ ] 일괄 업로드 실사용 테스트
+- [ ] Lighthouse 재측정
+- [ ] 웹 푸시 알림 (Phase 2)
+
+### 참고사항
+- BulkPhotoUpload는 useDepartments/useMembers 훅 재활용
+- 보고서 삭제 시 외래키 순서: report_programs → newcomers → approval_history → weekly_reports
+
+---
+
 ## 최근 작업 (2026-02-06)
 
 ### 문서 정리 완료 (커밋: f8511fc)

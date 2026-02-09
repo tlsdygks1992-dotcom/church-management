@@ -30,6 +30,7 @@ interface ReportDetailProps {
   history: (ApprovalHistory & { users: { name: string } | null })[]
   currentUser: User | null
   canApprove: string | null
+  canDelete: boolean
 }
 
 const REPORT_TYPE_CONFIG: Record<ReportType, { label: string; icon: string }> = {
@@ -45,6 +46,7 @@ export default function ReportDetail({
   history,
   currentUser,
   canApprove,
+  canDelete,
 }: ReportDetailProps) {
   const router = useRouter()
   const supabase = createClient()
@@ -54,6 +56,7 @@ export default function ReportDetail({
   const [showApprovalModal, setShowApprovalModal] = useState(false)
   const [approvalAction, setApprovalAction] = useState<'approve' | 'reject'>('approve')
   const [showCancelModal, setShowCancelModal] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
 
   // 작성자이고 제출된 상태일 때만 취소 가능
   const canCancelSubmission = currentUser?.id === report.author_id && report.status === 'submitted'
@@ -246,6 +249,31 @@ export default function ReportDetail({
     }
   }
 
+  // 관리자 보고서 삭제
+  const handleDelete = async () => {
+    if (!canDelete || !currentUser) return
+    setLoading(true)
+    setShowDeleteModal(false)
+
+    try {
+      // 관련 테이블 순서대로 삭제 (외래키 제약 순서)
+      await supabase.from('report_programs').delete().eq('report_id', report.id)
+      await supabase.from('newcomers').delete().eq('report_id', report.id)
+      await supabase.from('approval_history').delete().eq('report_id', report.id)
+
+      const { error } = await supabase.from('weekly_reports').delete().eq('id', report.id)
+      if (error) throw error
+
+      toast.success('보고서가 삭제되었습니다.')
+      router.push('/reports')
+    } catch (error) {
+      console.error('Failed to delete report:', error)
+      toast.error('보고서 삭제 중 오류가 발생했습니다.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleApproval = async () => {
     if (!canApprove || !currentUser) return
     setLoading(true)
@@ -353,6 +381,18 @@ export default function ReportDetail({
           </div>
 
           <div className="flex items-center gap-1">
+            {/* 관리자 삭제 버튼 */}
+            {canDelete && (
+              <button
+                onClick={() => setShowDeleteModal(true)}
+                className="p-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors"
+                title="삭제"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            )}
             {/* 제출 취소 버튼 (작성자 + submitted 상태일 때만) */}
             {canCancelSubmission && (
               <button
@@ -809,6 +849,42 @@ export default function ReportDetail({
                 className="flex-1 py-3 bg-orange-600 text-white rounded-xl font-medium hover:bg-orange-700 transition-colors disabled:opacity-50"
               >
                 {loading ? '처리 중...' : '제출 취소'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 보고서 삭제 확인 모달 */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5 animate-slide-up">
+            <div className="text-center">
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">보고서 삭제</h3>
+              <p className="text-gray-500 text-sm mb-6">
+                이 보고서를 삭제하시겠습니까?<br />
+                <span className="text-red-500 font-medium">삭제된 보고서는 복구할 수 없습니다.</span>
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                disabled={loading}
+                className="flex-1 py-3 border border-gray-200 rounded-xl font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={loading}
+                className="flex-1 py-3 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {loading ? '삭제 중...' : '삭제'}
               </button>
             </div>
           </div>

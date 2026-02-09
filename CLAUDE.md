@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **기능 구현 워크플로우**는 글로벌 규칙(`~/.claude/CLAUDE.md`)을 따른다.
+
 # 청파중앙교회 교육위원회 관리 시스템
 
 ## 프로젝트 개요

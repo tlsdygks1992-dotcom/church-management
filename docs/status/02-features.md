@@ -136,6 +136,7 @@
   - 반려
   - 수정 요청
 - 인쇄 기능
+- 관리자 보고서 삭제 기능
 
 ### 4.4 보고서 수정
 
@@ -173,7 +174,28 @@
 - 주 소속 부서 표시 (파란색 태그)
 - 부서명을 `·`로 구분하여 표시
 
-### 5.2 교인 등록
+### 5.2 교인 사진 일괄 업로드
+
+**경로**: `/members/bulk-photos`
+**파일**:
+- `src/app/(dashboard)/members/bulk-photos/page.tsx`
+- `src/components/members/BulkPhotoUpload.tsx`
+
+#### 기능
+
+- 부서 선택 후 여러 교인의 프로필 사진을 한번에 업로드
+- 파일명 기반 자동 매칭 (예: `홍길동.jpg` → 홍길동)
+- 매칭 실패 시 드롭다운으로 수동 선택
+- 기존 사진 덮어쓰기 경고
+- 업로드 진행률 및 상태 표시 (대기/진행/완료/실패)
+
+#### 권한
+
+- 관리자/팀장만 접근 가능 (canEditMembers 권한 체크)
+
+---
+
+### 5.3 교인 등록
 
 **경로**: `/members/new`
 **파일**: `src/components/members/MemberForm.tsx`
@@ -189,7 +211,7 @@
 - 부서 (다중 선택, 주 소속 지정)
 - 프로필 사진
 
-### 5.3 교인 상세/수정
+### 5.4 교인 상세/수정
 
 **경로**: `/members/[id]`
 **파일**: `src/app/(dashboard)/members/[id]/page.tsx`

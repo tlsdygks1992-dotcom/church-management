@@ -82,6 +82,9 @@ export default async function ReportDetailPage({ params }: Props) {
   // 권한 체크
   const canApprove = checkApprovalPermission(userData, report)
 
+  // 관리자만 삭제 가능
+  const canDelete = canAccessAllDepartments(userData?.role || '')
+
   return (
     <ReportDetail
       report={report}
@@ -90,6 +93,7 @@ export default async function ReportDetailPage({ params }: Props) {
       history={history || []}
       currentUser={userData}
       canApprove={canApprove}
+      canDelete={canDelete}
     />
   )
 }

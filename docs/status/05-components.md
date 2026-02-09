@@ -146,7 +146,8 @@ src/components/
 - 결재 흐름 타임라인 표시
 - 역할별 결재 액션 (협조/결재/확인/반려)
 - 인쇄 기능 (프린터 IP 설정)
-- 보고서 수정/삭제 버튼
+- 보고서 수정 버튼 (작성자 + draft)
+- 보고서 삭제 기능 (관리자만, 확인 모달)
 
 #### 결재 액션 버튼
 
@@ -225,6 +226,7 @@ src/components/
 | DeleteConfirmModal | `members/DeleteConfirmModal.tsx` | 삭제 확인 모달 |
 | PhotoUploader | `members/PhotoUploader.tsx` | 프로필 사진 업로드 |
 | DepartmentSelector | `members/DepartmentSelector.tsx` | 다중 부서 선택 |
+| BulkPhotoUpload | `members/BulkPhotoUpload.tsx` | 부서별 사진 일괄 업로드 |
 
 ---
 
@@ -525,6 +527,8 @@ App Layout
     │       ├── MemberGridCard (memoized)
     │       ├── MemberListItem (memoized)
     │       └── DeleteConfirmModal
+    ├── members/bulk-photos/page
+    │   └── BulkPhotoUpload
     ├── members/new/page
     │   └── MemberForm
     │       ├── PhotoUploader
