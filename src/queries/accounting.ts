@@ -6,7 +6,40 @@ import type { AccountingRecordWithDetails } from '@/types/database'
 
 const supabase = createClient()
 
-/** 회계장부 조회 */
+/** 회계장부 월별 조회 (부서 + 년 + 월) */
+export function useAccountingRecordsByMonth(
+  departmentId: string,
+  year: number,
+  month: number,
+) {
+  return useQuery({
+    queryKey: ['accounting', departmentId, year, month],
+    queryFn: async (): Promise<AccountingRecordWithDetails[]> => {
+      const startDate = `${year}-${String(month).padStart(2, '0')}-01`
+      const endDate = new Date(year, month, 0).toISOString().split('T')[0]
+
+      const { data, error } = await supabase
+        .from('accounting_records')
+        .select(`
+          *,
+          departments:department_id(name),
+          users:created_by(name)
+        `)
+        .eq('department_id', departmentId)
+        .gte('record_date', startDate)
+        .lte('record_date', endDate)
+        .order('record_date', { ascending: true })
+        .order('created_at', { ascending: true })
+
+      if (error) throw error
+      return (data || []) as AccountingRecordWithDetails[]
+    },
+    enabled: !!departmentId,
+    staleTime: 60_000, // 1분간 캐시 유지
+  })
+}
+
+/** 회계장부 조회 (기존 호환 - 부서 + 년) */
 export function useAccountingRecords(departmentId?: string, year?: number) {
   return useQuery({
     queryKey: ['accounting', departmentId, year],
