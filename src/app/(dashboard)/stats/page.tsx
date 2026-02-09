@@ -6,7 +6,9 @@ import dynamic from 'next/dynamic'
 import { exportStatsToExcel } from '@/lib/excel'
 import { ChartSkeleton } from '@/components/ui/Skeleton'
 
-// 차트 컴포넌트 동적 임포트 (번들 크기 최적화)
+type TabType = 'attendance' | 'reports'
+
+// 출결 차트 동적 임포트
 const WeeklyTrendChart = dynamic(
   () => import('@/components/stats/StatsCharts').then(mod => ({ default: mod.WeeklyTrendChart })),
   { ssr: false, loading: () => <ChartSkeleton /> }
@@ -18,6 +20,21 @@ const AttendanceDistributionCharts = dynamic(
 const DepartmentComparisonChart = dynamic(
   () => import('@/components/stats/StatsCharts').then(mod => ({ default: mod.DepartmentComparisonChart })),
   { ssr: false, loading: () => <ChartSkeleton /> }
+)
+
+// 보고서 통계 동적 임포트
+const ReportStatsContent = dynamic(
+  () => import('@/components/stats/ReportStatsContent'),
+  { ssr: false, loading: () => (
+    <div className="space-y-4 md:space-y-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} className="h-20 md:h-24 bg-gray-100 rounded-xl animate-pulse" />
+        ))}
+      </div>
+      <ChartSkeleton />
+    </div>
+  )}
 )
 
 interface Department {
@@ -44,6 +61,7 @@ interface DepartmentStats {
 }
 
 export default function StatsPage() {
+  const [activeTab, setActiveTab] = useState<TabType>('attendance')
   const [departments, setDepartments] = useState<Department[]>([])
   const [selectedDept, setSelectedDept] = useState<string>('all')
   const [weeklyStats, setWeeklyStats] = useState<WeeklyStats[]>([])
@@ -303,8 +321,10 @@ export default function StatsPage() {
       {/* 헤더 */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold text-gray-900">출결 통계</h1>
-          <p className="text-sm md:text-base text-gray-500 mt-1">부서별 출석률과 추이를 확인하세요</p>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900">통계</h1>
+          <p className="text-sm md:text-base text-gray-500 mt-1">
+            {activeTab === 'attendance' ? '부서별 출석률과 추이를 확인하세요' : '보고서 제출 현황과 결재 통계를 확인하세요'}
+          </p>
         </div>
 
         {/* 필터 */}
@@ -336,21 +356,59 @@ export default function StatsPage() {
             ))}
           </div>
 
-          {/* 엑셀 내보내기 */}
-          <button
-            onClick={() => {
-              const periodName = period === 'month' ? '월간' : period === 'quarter' ? '분기' : '연간'
-              exportStatsToExcel(departmentStats, periodName)
-            }}
-            className="px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors flex items-center gap-1.5"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            <span className="text-sm font-medium">엑셀</span>
-          </button>
+          {/* 엑셀 내보내기 (출결 탭에서만) */}
+          {activeTab === 'attendance' && (
+            <button
+              onClick={() => {
+                const periodName = period === 'month' ? '월간' : period === 'quarter' ? '분기' : '연간'
+                exportStatsToExcel(departmentStats, periodName)
+              }}
+              className="px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors flex items-center gap-1.5"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span className="text-sm font-medium">엑셀</span>
+            </button>
+          )}
         </div>
       </div>
+
+      {/* 탭 전환 */}
+      <div className="flex border-b border-gray-200">
+        <button
+          onClick={() => setActiveTab('attendance')}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'attendance'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          출결 통계
+        </button>
+        <button
+          onClick={() => setActiveTab('reports')}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'reports'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          보고서 통계
+        </button>
+      </div>
+
+      {/* 보고서 통계 탭 */}
+      {activeTab === 'reports' && (
+        <ReportStatsContent
+          departments={departments}
+          selectedDept={selectedDept}
+          period={period}
+        />
+      )}
+
+      {/* 출결 통계 탭 - 요약 통계 */}
+      {activeTab === 'attendance' && <>
 
       {/* 요약 통계 */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
@@ -519,6 +577,8 @@ export default function StatsPage() {
           </div>
         )}
       </div>
+
+      </>}
     </div>
   )
 }
