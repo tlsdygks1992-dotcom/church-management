@@ -114,8 +114,16 @@ export default function PushPermission({ userId }: PushPermissionProps) {
     }
   }, [])
 
-  // 지원하지 않거나 거부된 경우
-  if (permission === 'unsupported') return null
+  // 지원하지 않는 경우 (iOS Safari 등)
+  if (permission === 'unsupported') {
+    return (
+      <div className="px-4 py-2 text-xs text-gray-400 border-t border-gray-100 text-center">
+        이 브라우저에서는 푸시 알림을 지원하지 않습니다.
+        <br />
+        <span className="text-[10px]">Chrome, Edge 또는 홈 화면에 추가한 PWA에서 사용 가능</span>
+      </div>
+    )
+  }
   if (permission === 'denied') {
     return (
       <div className="px-4 py-2 text-xs text-gray-400 border-t border-gray-100">

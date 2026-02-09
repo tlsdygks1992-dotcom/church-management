@@ -106,7 +106,7 @@ export default function NotificationBell({ userId }: NotificationBellProps) {
           </div>
 
           {/* 알림 목록 */}
-          <div className="overflow-y-auto max-h-[calc(70vh-56px)]">
+          <div className="overflow-y-auto max-h-[calc(70vh-100px)]">
             {isLoading ? (
               <div className="flex items-center justify-center py-8">
                 <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
