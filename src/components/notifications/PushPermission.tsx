@@ -52,12 +52,33 @@ export default function PushPermission({ userId }: PushPermissionProps) {
         return
       }
 
-      // 2. Service Worker 준비 대기 (10초 타임아웃)
-      const reg = await withTimeout(
-        navigator.serviceWorker.ready,
-        10000,
-        'Service Worker 준비'
-      )
+      // 2. Service Worker 등록 + 준비 대기
+      let reg: ServiceWorkerRegistration
+      try {
+        // 아직 등록 안 되었을 수 있으므로 직접 등록 시도
+        reg = await withTimeout(
+          navigator.serviceWorker.register('/sw.js', { scope: '/' }),
+          10000,
+          'Service Worker 등록'
+        )
+        // active 상태가 될 때까지 대기
+        if (!reg.active) {
+          await withTimeout(
+            new Promise<void>((resolve) => {
+              const sw = reg.installing || reg.waiting
+              if (!sw) { resolve(); return }
+              sw.addEventListener('statechange', () => {
+                if (sw.state === 'activated') resolve()
+              })
+            }),
+            10000,
+            'Service Worker 활성화'
+          )
+        }
+      } catch (swErr) {
+        // 이미 등록된 경우 ready로 시도
+        reg = await withTimeout(navigator.serviceWorker.ready, 10000, 'Service Worker 준비')
+      }
 
       // 3. VAPID 키 확인
       const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
