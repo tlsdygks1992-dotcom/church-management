@@ -1,16 +1,17 @@
 import webpush from 'web-push'
 import { SupabaseClient } from '@supabase/supabase-js'
 
-// VAPID 설정
-const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || ''
+// VAPID 설정 (lazy init - 빌드 시 모듈 로드에서 실행되지 않도록)
+let vapidInitialized = false
 
-if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
-  webpush.setVapidDetails(
-    'mailto:admin@chungpa.church',
-    VAPID_PUBLIC_KEY,
-    VAPID_PRIVATE_KEY
-  )
+function initVapid() {
+  if (vapidInitialized) return
+  const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+  const privateKey = process.env.VAPID_PRIVATE_KEY
+  if (publicKey && privateKey) {
+    webpush.setVapidDetails('mailto:admin@chungpa.church', publicKey, privateKey)
+    vapidInitialized = true
+  }
 }
 
 interface PushPayload {
@@ -28,6 +29,8 @@ export async function sendPushToUser(
   userId: string,
   payload: PushPayload
 ): Promise<void> {
+  initVapid()
+
   const { data: subscriptions, error } = await supabase
     .from('push_subscriptions')
     .select('id, endpoint, p256dh_key, auth_key')
