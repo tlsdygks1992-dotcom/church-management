@@ -116,11 +116,21 @@ export default function PushPermission({ userId }: PushPermissionProps) {
 
   // 지원하지 않는 경우 (iOS Safari 등)
   if (permission === 'unsupported') {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
     return (
-      <div className="px-4 py-2 text-xs text-gray-400 border-t border-gray-100 text-center">
-        이 브라우저에서는 푸시 알림을 지원하지 않습니다.
-        <br />
-        <span className="text-[10px]">Chrome, Edge 또는 홈 화면에 추가한 PWA에서 사용 가능</span>
+      <div className="px-4 py-2.5 text-xs text-gray-500 border-t border-gray-100 text-center space-y-1">
+        <p className="font-medium text-gray-600">푸시 알림을 사용할 수 없습니다</p>
+        {isIOS ? (
+          <p className="text-[11px] leading-relaxed">
+            Safari 하단 <span className="inline-block align-middle">
+              <svg className="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+            </span> 버튼 → <strong>&quot;홈 화면에 추가&quot;</strong>로<br />앱을 설치하면 푸시 알림을 받을 수 있어요
+          </p>
+        ) : (
+          <p className="text-[11px]">Chrome 또는 Edge 브라우저에서 사용 가능합니다</p>
+        )}
       </div>
     )
   }
