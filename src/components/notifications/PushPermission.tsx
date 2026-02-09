@@ -68,31 +68,30 @@ export default function PushPermission({ userId }: PushPermissionProps) {
         )
       }
 
-      // active가 아니면 대기
+      // active가 아니면 skipWaiting + 폴링으로 대기
       if (!reg.active) {
-        setStep('2/5 Service Worker 활성화 대기...')
-        const sw = reg.installing || reg.waiting
-        if (sw) {
-          await withTimeout(
-            new Promise<void>((resolve) => {
-              if (sw.state === 'activated' || sw.state === 'activating') { resolve(); return }
-              const onStateChange = () => {
-                if (sw.state === 'activated' || sw.state === 'activating') {
-                  sw.removeEventListener('statechange', onStateChange)
-                  resolve()
-                }
+        setStep('2/5 Service Worker 활성화 중...')
+
+        // waiting 중인 SW에 skipWaiting 메시지 전송
+        const waitingSW = reg.waiting || reg.installing
+        if (waitingSW) {
+          waitingSW.postMessage('SKIP_WAITING')
+        }
+
+        // 폴링으로 active 대기 (500ms 간격, 최대 20초)
+        await withTimeout(
+          new Promise<void>((resolve) => {
+            if (reg!.active) { resolve(); return }
+            const interval = setInterval(() => {
+              if (reg!.active) {
+                clearInterval(interval)
+                resolve()
               }
-              sw.addEventListener('statechange', onStateChange)
-            }),
-            15000,
-            'SW 활성화'
-          )
-        }
-        // 최종 확인
-        if (!reg.active) {
-          setStep('2/5 Service Worker ready 대기...')
-          reg = await withTimeout(navigator.serviceWorker.ready, 15000, 'SW ready')
-        }
+            }, 500)
+          }),
+          20000,
+          'SW 활성화'
+        )
       }
 
       // 3. VAPID 키
