@@ -19,7 +19,12 @@ self.addEventListener('install', (event) => {
     caches.open(STATIC_CACHE)
       .then((cache) => {
         console.log('[SW] Caching static assets')
-        return cache.addAll(STATIC_ASSETS)
+        // 개별 캐싱 (일부 실패해도 SW 설치 진행)
+        return Promise.allSettled(
+          STATIC_ASSETS.map((url) => cache.add(url).catch(() => {
+            console.warn('[SW] Failed to cache:', url)
+          }))
+        )
       })
       .then(() => {
         // 즉시 활성화 (대기 상태 건너뛰기)
@@ -235,9 +240,3 @@ self.addEventListener('message', (event) => {
   }
 })
 
-// bfcache 지원: 페이지 복원 시 캐시 상태 확인
-self.addEventListener('pageshow', (event) => {
-  if (event.persisted) {
-    console.log('[SW] Page restored from bfcache')
-  }
-})
