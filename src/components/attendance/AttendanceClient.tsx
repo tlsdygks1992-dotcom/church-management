@@ -1,33 +1,15 @@
 'use client'
 
-import { useMemo, useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useMemo } from 'react'
 import { useAuth } from '@/providers/AuthProvider'
 import { useDepartments } from '@/queries/departments'
+import { useAttendanceMembers, useAttendanceRecordsBrief } from '@/queries/attendance'
 import { canAccessAllDepartments } from '@/lib/permissions'
 import AttendanceGrid from './AttendanceGrid'
-
-interface MemberBasic {
-  id: string
-  name: string
-  photo_url: string | null
-}
-
-interface AttendanceRecordBasic {
-  id: string
-  member_id: string
-  attendance_type: string
-  is_present: boolean
-}
 
 export default function AttendanceClient() {
   const { user } = useAuth()
   const { data: allDepts = [], isLoading: deptsLoading } = useDepartments()
-  const supabase = useMemo(() => createClient(), [])
-
-  const [initialMembers, setInitialMembers] = useState<MemberBasic[]>([])
-  const [initialRecords, setInitialRecords] = useState<AttendanceRecordBasic[]>([])
-  const [loading, setLoading] = useState(true)
 
   // 이번 주 일요일
   const sundayStr = useMemo(() => {
@@ -46,51 +28,19 @@ export default function AttendanceClient() {
 
   const defaultDeptId = departments[0]?.id
 
-  // 초기 데이터 로드
-  useEffect(() => {
-    if (!defaultDeptId) {
-      setLoading(false)
-      return
-    }
+  // TanStack Query로 데이터 조회 (캐시 활용)
+  const { data: members = [], isLoading: membersLoading } = useAttendanceMembers(defaultDeptId)
+  const { data: allRecords = [], isLoading: recordsLoading } = useAttendanceRecordsBrief(sundayStr)
 
-    async function loadInitial() {
-      const [memberDeptResult, attendanceResult] = await Promise.all([
-        supabase
-          .from('member_departments')
-          .select('member_id')
-          .eq('department_id', defaultDeptId),
-        supabase
-          .from('attendance_records')
-          .select('id, member_id, attendance_type, is_present')
-          .eq('attendance_date', sundayStr),
-      ])
+  // 해당 부서 교인의 출결만 필터
+  const attendanceRecords = useMemo(() => {
+    const memberIdSet = new Set(members.map(m => m.id))
+    return allRecords.filter(a => memberIdSet.has(a.member_id))
+  }, [members, allRecords])
 
-      const memberIds = [...new Set((memberDeptResult.data || []).map((md: { member_id: string }) => md.member_id))]
+  const loading = !user || deptsLoading || membersLoading || recordsLoading
 
-      if (memberIds.length > 0) {
-        const { data: membersData } = await supabase
-          .from('members')
-          .select('id, name, photo_url')
-          .in('id', memberIds)
-          .eq('is_active', true)
-          .order('name')
-
-        const members = (membersData || []) as MemberBasic[]
-        const memberIdSet = new Set(members.map(m => m.id))
-        const records = ((attendanceResult.data || []) as AttendanceRecordBasic[])
-          .filter(a => memberIdSet.has(a.member_id))
-
-        setInitialMembers(members)
-        setInitialRecords(records)
-      }
-
-      setLoading(false)
-    }
-
-    loadInitial()
-  }, [defaultDeptId, sundayStr, supabase])
-
-  if (!user || deptsLoading || loading) {
+  if (loading) {
     return (
       <div className="space-y-4 lg:space-y-6 max-w-5xl mx-auto">
         <div>
@@ -121,8 +71,8 @@ export default function AttendanceClient() {
         <AttendanceGrid
           departments={departments}
           defaultDepartmentId={defaultDeptId}
-          members={initialMembers}
-          attendanceRecords={initialRecords}
+          members={members}
+          attendanceRecords={attendanceRecords}
           attendanceDate={sundayStr}
         />
       ) : (

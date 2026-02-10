@@ -1,11 +1,28 @@
 'use client'
 
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import type { ReportSummary } from '@/types/shared'
 import type { WeeklyReport, ReportProgram, Newcomer, ApprovalHistory } from '@/types/database'
 
 const supabase = createClient()
+
+// ─── 보고서 목록 아이템 타입 ────────────────────────
+
+export interface ReportListItem {
+  id: string
+  author_id: string
+  department_id: string
+  report_date: string
+  week_number: number
+  status: string
+  report_type: string
+  worship_attendance: number
+  total_registered: number
+  meeting_title: string | null
+  departments: { name: string } | null
+  users: { name: string } | null
+}
 
 // ─── 보고서 상세 타입 ──────────────────────────────
 
@@ -53,6 +70,7 @@ export function useReportDetail(id: string | undefined) {
     },
     enabled: !!id,
     staleTime: 30_000,
+    placeholderData: keepPreviousData,
   })
 }
 
@@ -130,31 +148,60 @@ export function useTeamLeaderIds(departmentId: string | undefined) {
 /** 보고서 목록 조회 */
 export function useReports(options?: {
   departmentId?: string
+  departmentIds?: string[]
   status?: string
-  type?: string
+  reportType?: string
   limit?: number
 }) {
   return useQuery({
-    queryKey: ['reports', options],
-    queryFn: async (): Promise<ReportSummary[]> => {
+    queryKey: ['reports', 'list', options],
+    queryFn: async (): Promise<ReportListItem[]> => {
       let query = supabase
         .from('weekly_reports')
-        .select('id, report_date, week_number, status, departments(name), users!weekly_reports_author_id_fkey(name)')
+        .select('id, author_id, department_id, report_date, week_number, status, report_type, worship_attendance, total_registered, meeting_title, departments(name), users!weekly_reports_author_id_fkey(name)')
         .order('report_date', { ascending: false })
 
-      if (options?.departmentId) {
+      if (options?.reportType) {
+        query = query.eq('report_type', options.reportType)
+      }
+      if (options?.departmentId && options.departmentId !== 'all') {
         query = query.eq('department_id', options.departmentId)
+      } else if (options?.departmentIds && options.departmentIds.length > 0) {
+        query = query.in('department_id', options.departmentIds)
       }
       if (options?.status) {
         query = query.eq('status', options.status)
       }
-      if (options?.limit) {
-        query = query.limit(options.limit)
-      }
+      query = query.limit(options?.limit || 50)
 
       const { data, error } = await query
       if (error) throw error
-      return (data || []) as ReportSummary[]
+      return (data || []) as ReportListItem[]
     },
+    staleTime: 2 * 60_000, // 2분 캐싱
+    placeholderData: keepPreviousData,
+  })
+}
+
+/** 부서별 팀장 ID 맵 조회 (복수 부서) */
+export function useTeamLeaderMap(departmentIds: string[]) {
+  return useQuery({
+    queryKey: ['team-leaders', 'map', departmentIds],
+    queryFn: async (): Promise<Record<string, string[]>> => {
+      const { data, error } = await supabase
+        .from('user_departments')
+        .select('department_id, user_id')
+        .in('department_id', departmentIds)
+        .eq('is_team_leader', true)
+      if (error) throw error
+      const map: Record<string, string[]> = {}
+      for (const row of (data || []) as { department_id: string; user_id: string }[]) {
+        if (!map[row.department_id]) map[row.department_id] = []
+        map[row.department_id].push(row.user_id)
+      }
+      return map
+    },
+    enabled: departmentIds.length > 0,
+    staleTime: 5 * 60_000,
   })
 }

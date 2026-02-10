@@ -1,28 +1,14 @@
 'use client'
 
-import { useState, useMemo, useCallback, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useMemo, useCallback } from 'react'
 import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/providers/AuthProvider'
 import { useDepartments } from '@/queries/departments'
+import { useReports, useTeamLeaderMap } from '@/queries/reports'
 import { canAccessAllDepartments, canWriteReport as checkCanWriteReport, getAccessibleDepartmentIds, canViewReport } from '@/lib/permissions'
 
 type ReportType = 'weekly' | 'meeting' | 'education' | 'cell_leader'
-
-interface Report {
-  id: string
-  author_id: string
-  department_id: string
-  report_date: string
-  status: string
-  report_type: ReportType
-  worship_attendance: number
-  total_registered: number
-  meeting_title: string | null
-  departments: { name: string } | null
-  users: { name: string } | null
-}
 
 const REPORT_TYPE_CONFIG: Record<ReportType, { label: string; icon: string; color: string }> = {
   weekly: { label: '주차 보고서', icon: '📋', color: 'blue' },
@@ -34,6 +20,8 @@ const REPORT_TYPE_CONFIG: Record<ReportType, { label: string; icon: string; colo
 export default function ReportListClient() {
   const { user } = useAuth()
   const { data: allDepartments = [] } = useDepartments()
+  const searchParams = useSearchParams()
+  const router = useRouter()
 
   const isAdmin = canAccessAllDepartments(user?.role || '')
   const canWriteReport = checkCanWriteReport(user)
@@ -44,56 +32,21 @@ export default function ReportListClient() {
     return allDepartments.filter(d => userDepartmentIds.includes(d.id))
   }, [isAdmin, allDepartments, userDepartmentIds])
 
-  const supabase = useMemo(() => createClient(), [])
-  const searchParams = useSearchParams()
-  const router = useRouter()
-
-  const [reports, setReports] = useState<Report[]>([])
-  const [loading, setLoading] = useState(true)
-  const [selectedDept, setSelectedDept] = useState<string>('all')
-  const [teamLeaderMap, setTeamLeaderMap] = useState<Record<string, string[]>>({})
-
+  // URL에서 타입/부서 읽기
   const selectedType = (searchParams.get('type') as ReportType) || 'weekly'
+  const selectedDept = searchParams.get('dept') || 'all'
 
-  const loadReports = useCallback(async (type: ReportType, deptId: string) => {
-    setLoading(true)
+  // TanStack Query로 보고서 목록 조회
+  const { data: reports = [], isLoading, isFetching } = useReports({
+    reportType: selectedType,
+    departmentId: selectedDept !== 'all' ? selectedDept : undefined,
+    departmentIds: selectedDept === 'all' && !isAdmin ? userDepartmentIds : undefined,
+  })
 
-    let query = supabase
-      .from('weekly_reports')
-      .select('*, departments(name), users!weekly_reports_author_id_fkey(name)')
-      .eq('report_type', type)
-      .order('report_date', { ascending: false })
-      .limit(50)
-
-    if (deptId !== 'all') {
-      query = query.eq('department_id', deptId)
-    } else if (!isAdmin && userDepartmentIds.length > 0) {
-      query = query.in('department_id', userDepartmentIds)
-    }
-
-    const { data } = await query
-    setReports((data || []) as Report[])
-    setLoading(false)
-  }, [supabase, isAdmin, userDepartmentIds])
-
-  // 부서별 팀장 ID 조회 (열람 권한 필터링용)
-  useEffect(() => {
-    if (!user || isAdmin || userDepartmentIds.length === 0) return
-    const fetchTeamLeaders = async () => {
-      const { data } = await supabase
-        .from('user_departments')
-        .select('department_id, user_id')
-        .in('department_id', userDepartmentIds)
-        .eq('is_team_leader', true)
-      const map: Record<string, string[]> = {}
-      for (const row of data || []) {
-        if (!map[row.department_id]) map[row.department_id] = []
-        map[row.department_id].push(row.user_id)
-      }
-      setTeamLeaderMap(map)
-    }
-    fetchTeamLeaders()
-  }, [user, isAdmin, userDepartmentIds, supabase])
+  // 팀장 ID 맵 조회 (열람 권한 필터링용)
+  const { data: teamLeaderMap = {} } = useTeamLeaderMap(
+    isAdmin ? [] : userDepartmentIds
+  )
 
   // 열람 권한 필터링
   const filteredReports = useMemo(() => {
@@ -105,22 +58,19 @@ export default function ReportListClient() {
     })
   }, [reports, user, isAdmin, teamLeaderMap])
 
-  // 초기 로드 (user 정보가 준비되면)
-  useEffect(() => {
-    if (user) {
-      loadReports(selectedType, selectedDept)
-    }
-  }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
-
   const handleTypeChange = useCallback((type: ReportType) => {
-    router.push(`/reports?type=${type}`)
-    loadReports(type, selectedDept)
-  }, [router, loadReports, selectedDept])
+    const params = new URLSearchParams()
+    params.set('type', type)
+    if (selectedDept !== 'all') params.set('dept', selectedDept)
+    router.push(`/reports?${params.toString()}`)
+  }, [router, selectedDept])
 
   const handleDeptChange = useCallback((deptId: string) => {
-    setSelectedDept(deptId)
-    loadReports(selectedType, deptId)
-  }, [loadReports, selectedType])
+    const params = new URLSearchParams()
+    params.set('type', selectedType)
+    if (deptId !== 'all') params.set('dept', deptId)
+    router.push(`/reports?${params.toString()}`)
+  }, [router, selectedType])
 
   if (!user) {
     return (
@@ -208,12 +158,12 @@ export default function ReportListClient() {
 
       {/* 보고서 목록 */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        {loading ? (
+        {isLoading ? (
           <div className="py-12 flex items-center justify-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           </div>
         ) : filteredReports.length > 0 ? (
-          <div className="divide-y divide-gray-100">
+          <div className={`divide-y divide-gray-100 ${isFetching ? 'opacity-70 transition-opacity' : ''}`}>
             {filteredReports.map((report) => (
               <Link
                 key={report.id}
@@ -223,7 +173,8 @@ export default function ReportListClient() {
                 {/* 아이콘 */}
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
                   selectedType === 'weekly' ? 'bg-blue-100' :
-                  selectedType === 'meeting' ? 'bg-green-100' : 'bg-purple-100'
+                  selectedType === 'meeting' ? 'bg-green-100' :
+                  selectedType === 'cell_leader' ? 'bg-teal-100' : 'bg-purple-100'
                 }`}>
                   <span className="text-lg">{REPORT_TYPE_CONFIG[selectedType].icon}</span>
                 </div>

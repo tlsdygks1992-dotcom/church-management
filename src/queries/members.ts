@@ -1,6 +1,6 @@
 'use client'
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import type { MemberWithDepts } from '@/types/shared'
 
@@ -40,6 +40,8 @@ export function useMembers(departmentIds?: string[]) {
       if (error) throw error
       return (data || []) as unknown as MemberWithDepts[]
     },
+    staleTime: 5 * 60_000, // 5분 캐싱
+    placeholderData: keepPreviousData,
   })
 }
 

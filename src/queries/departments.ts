@@ -1,6 +1,6 @@
 'use client'
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import type { Department, Cell } from '@/types/database'
 
@@ -18,7 +18,8 @@ export function useDepartments() {
       if (error) throw error
       return data || []
     },
-    staleTime: 10 * 60 * 1000, // 부서 데이터는 거의 안 변하므로 10분
+    staleTime: 10 * 60_000, // 부서 데이터는 거의 안 변하므로 10분
+    placeholderData: keepPreviousData,
   })
 }
 
