@@ -597,7 +597,21 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
           <div className="space-y-3">
             {newcomers.map((newcomer) => (
               <div key={newcomer.id} className="p-3 bg-gray-50 rounded-xl">
-                <p className="font-medium text-gray-900">{newcomer.name}</p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-medium text-gray-900">{newcomer.name}</p>
+                  {newcomer.converted_to_member_id ? (
+                    <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium shrink-0">
+                      전환 완료
+                    </span>
+                  ) : (canDelete || currentUser?.id === report.author_id) && (
+                    <a
+                      href={`/members/new?newcomerId=${newcomer.id}`}
+                      className="px-2.5 py-1 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors shrink-0"
+                    >
+                      교인 전환
+                    </a>
+                  )}
+                </div>
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
                   {newcomer.phone && <span>연락처: {newcomer.phone}</span>}
                   {newcomer.introducer && <span>인도자: {newcomer.introducer}</span>}

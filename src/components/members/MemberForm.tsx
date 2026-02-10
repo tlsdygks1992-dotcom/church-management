@@ -28,12 +28,23 @@ interface MemberWithDepartments extends Member {
   member_departments?: MemberDepartmentData[]
 }
 
+interface NewcomerData {
+  id: string
+  name: string
+  phone: string | null
+  birth_date: string | null
+  address: string | null
+  affiliation: string | null
+  department_id: string | null
+}
+
 interface MemberFormProps {
   departments: Department[]
   member?: MemberWithDepartments
+  newcomerData?: NewcomerData | null
 }
 
-export default function MemberForm({ departments, member }: MemberFormProps) {
+export default function MemberForm({ departments, member, newcomerData }: MemberFormProps) {
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
   const isEdit = !!member
@@ -47,20 +58,31 @@ export default function MemberForm({ departments, member }: MemberFormProps) {
     initialDeptIds[0] || departments[0]?.id || ''
 
   const [form, setForm] = useState({
-    name: member?.name || '',
-    phone: member?.phone || '',
+    name: member?.name || newcomerData?.name || '',
+    phone: member?.phone || newcomerData?.phone || '',
     email: member?.email || '',
-    birth_date: member?.birth_date || '',
-    address: member?.address || '',
-    occupation: member?.occupation || '',
+    birth_date: member?.birth_date || newcomerData?.birth_date || '',
+    address: member?.address || newcomerData?.address || '',
+    occupation: member?.occupation || newcomerData?.affiliation || '',
   })
+
+  // 새신자의 부서 기본 선택
+  const newcomerDeptId = newcomerData?.department_id && departments.some(d => d.id === newcomerData.department_id)
+    ? newcomerData.department_id
+    : null
 
   // 다중 부서 선택
   const [selectedDeptIds, setSelectedDeptIds] = useState<string[]>(
-    initialDeptIds.length > 0 ? initialDeptIds : (departments[0]?.id ? [departments[0].id] : [])
+    initialDeptIds.length > 0
+      ? initialDeptIds
+      : newcomerDeptId
+        ? [newcomerDeptId]
+        : (departments[0]?.id ? [departments[0].id] : [])
   )
   // 주 소속 부서
-  const [primaryDeptId, setPrimaryDeptId] = useState<string>(initialPrimaryDeptId)
+  const [primaryDeptId, setPrimaryDeptId] = useState<string>(
+    initialPrimaryDeptId || newcomerDeptId || departments[0]?.id || ''
+  )
 
   // cu1 부서의 셀 선택
   const cu1Dept = departments.find(d => d.code === CU1_DEPARTMENT_CODE)
@@ -224,6 +246,14 @@ export default function MemberForm({ departments, member }: MemberFormProps) {
           .insert(deptRecords)
 
         if (deptError) throw deptError
+
+        // 새신자 → 교인 전환 시, newcomer 레코드에 member_id 기록
+        if (newcomerData?.id) {
+          await supabase
+            .from('newcomers')
+            .update({ converted_to_member_id: newMember.id })
+            .eq('id', newcomerData.id)
+        }
       }
 
       router.push('/members')
