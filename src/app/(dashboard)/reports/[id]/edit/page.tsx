@@ -41,8 +41,8 @@ export default async function EditReportPage({ params }: Props) {
     notFound()
   }
 
-  // 권한 체크: 작성자이고 draft 상태일 때만 수정 가능
-  if (report.author_id !== user.id || report.status !== 'draft') {
+  // 권한 체크: 작성자이고 draft 또는 rejected 상태일 때만 수정 가능
+  if (report.author_id !== user.id || !['draft', 'rejected'].includes(report.status)) {
     redirect(`/reports/${id}`)
   }
 

@@ -466,8 +466,8 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
                 </svg>
               </button>
             )}
-            {/* 수정 버튼 (작성자 + draft 상태일 때만) */}
-            {currentUser?.id === report.author_id && report.status === 'draft' && (
+            {/* 수정 버튼 (작성자 + draft/rejected 상태일 때) */}
+            {currentUser?.id === report.author_id && ['draft', 'rejected'].includes(report.status) && (
               <button
                 onClick={() => router.push(`/reports/${report.id}/edit`)}
                 className="p-2.5 bg-green-50 text-green-600 rounded-xl hover:bg-green-100 transition-colors"
@@ -650,6 +650,39 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 반려 안내 (작성자에게만 표시) */}
+      {report.status === 'rejected' && (
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-4 lg:p-6">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-red-100 rounded-lg shrink-0">
+              <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-red-800 text-sm lg:text-base">보고서가 반려되었습니다</h3>
+              {(report as any).rejection_reason && (
+                <div className="mt-2 p-3 bg-white/70 rounded-xl">
+                  <p className="text-xs text-red-600 font-medium mb-1">반려 사유</p>
+                  <p className="text-sm text-red-700">{(report as any).rejection_reason}</p>
+                </div>
+              )}
+              {currentUser?.id === report.author_id && (
+                <div className="mt-3">
+                  <p className="text-xs text-red-600 mb-2">수정 후 다시 제출할 수 있습니다.</p>
+                  <button
+                    onClick={() => router.push(`/reports/${report.id}/edit`)}
+                    className="px-4 py-2.5 bg-red-600 text-white rounded-xl font-medium text-sm hover:bg-red-700 active:bg-red-800 transition-colors"
+                  >
+                    수정 후 재제출
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -383,10 +383,18 @@ export default function ReportForm({
       let reportId: string
 
       if (editMode && existingReport) {
-        // 수정 모드
+        // 수정 모드 (재제출 시 반려 정보 초기화)
+        const updatePayload = {
+          ...reportData,
+          ...(!isDraft ? {
+            rejected_by: null,
+            rejected_at: null,
+            rejection_reason: null,
+          } : {}),
+        }
         const { error: updateError } = await supabase
           .from('weekly_reports')
-          .update(reportData)
+          .update(updatePayload)
           .eq('id', existingReport.id)
 
         if (updateError) throw updateError
@@ -477,8 +485,8 @@ export default function ReportForm({
         }
       }
 
-      // 제출 시 알림 생성 (신규 제출만)
-      if (!isDraft && !editMode) {
+      // 제출 시 알림 생성 (신규 제출 + 재제출 모두)
+      if (!isDraft) {
         const selectedDept = departments.find(d => d.id === form.department_id)
         await createApprovalNotification(supabase, {
           reportId: reportId,
