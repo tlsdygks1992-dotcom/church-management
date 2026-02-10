@@ -1,5 +1,27 @@
 # 세션 노트
 
+## 작업 내역 (2026-02-10)
+
+### 완료된 작업
+1. [페이지 로딩 최적화 Phase 2] - 나머지 5개 페이지 변환 완료
+   - Dashboard: `DashboardContent` → useAuth + 4개 대시보드 훅
+   - Members: 새 `MembersClient` 래퍼 → useAuth + useDepartments + useMembers
+   - Reports: `ReportListClient` → useAuth + useDepartments (props 제거)
+   - Attendance: 새 `AttendanceClient` 래퍼 → useAuth + useDepartments + 초기 로드
+   - Users: 새 `UsersClient` 래퍼 → useAuth + useAllUsers + useDepartments
+   - 새 파일: `queries/dashboard.ts`, `queries/users.ts`, `MembersClient.tsx`, `AttendanceClient.tsx`, `UsersClient.tsx`
+   - TypeScript 검사 통과, 빌드 성공, Vercel 배포 완료
+   - **미커밋** (배포는 완료)
+
+2. [문서 업데이트] - 05-components, 06-api 업데이트
+
+### 참고사항
+- 전체 9개 페이지 모두 `useAuth()` + TanStack Query 패턴으로 전환 완료
+- 아키텍처 교훈: 서버 컴포넌트 방식은 매번 서버 fetch 필요 → 캐싱 불가. 클라이언트 훅이 정답
+- 코드량 약 365줄 감소 (서버 로직 제거, 클라이언트 훅으로 대체)
+
+---
+
 ## 작업 내역 (2026-02-09)
 
 ### 완료된 작업

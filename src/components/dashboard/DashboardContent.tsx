@@ -1,35 +1,43 @@
 'use client'
 
+import { useMemo } from 'react'
 import Link from 'next/link'
-import type { UserData, ReportSummary } from '@/types/shared'
+import { useAuth } from '@/providers/AuthProvider'
+import { useRecentReports, useThisWeekReport, useDashboardPending, useThisWeekStats } from '@/queries/dashboard'
+import { getAccessibleDepartmentIds } from '@/lib/permissions'
 
-interface DashboardContentProps {
-  userInfo: UserData
-  pendingReports: ReportSummary[]
-  recentReports: ReportSummary[]
-  thisWeekReport: { id: string; status: string } | null
-  thisWeekStats: { total: number; worship: number; meeting: number }
+const roleDisplayNames: Record<string, string> = {
+  'president': '회장',
+  'manager': '부장',
+  'pastor': '담당목사',
+  'team_leader': '팀장',
+  'member': '교인',
+  'super_admin': '관리자'
 }
 
-export default function DashboardContent({
-  userInfo,
-  pendingReports,
-  recentReports,
-  thisWeekReport,
-  thisWeekStats
-}: DashboardContentProps) {
-  const userRole = userInfo.role
-  const isTeamLeader = userInfo.user_departments?.some((ud) => ud.is_team_leader)
-  const userDeptName = userInfo.user_departments?.[0]?.departments?.name || ''
+export default function DashboardContent() {
+  const { user } = useAuth()
+  const userRole = user?.role || ''
+  const userDeptIds = useMemo(() => getAccessibleDepartmentIds(user), [user])
+  const isTeamLeader = user?.user_departments?.some((ud) => ud.is_team_leader)
+  const userDeptName = user?.user_departments?.[0]?.departments?.name || ''
+
+  const { data: recentReports = [] } = useRecentReports()
+  const { data: thisWeekReport } = useThisWeekReport(user?.id)
+  const { data: pendingReports = [] } = useDashboardPending(userRole)
+  const { data: thisWeekStats = { total: 0, worship: 0, meeting: 0 } } = useThisWeekStats(userDeptIds)
+
   const today = new Date()
 
-  const roleDisplayNames: Record<string, string> = {
-    'president': '회장',
-    'manager': '부장',
-    'pastor': '담당목사',
-    'team_leader': '팀장',
-    'member': '교인',
-    'super_admin': '관리자'
+  if (!user) {
+    return (
+      <div className="space-y-4 lg:space-y-6">
+        <div className="bg-gray-200 rounded-2xl p-4 lg:p-6 h-24 animate-pulse" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+          {[1,2,3,4].map(i => <div key={i} className="bg-gray-100 rounded-xl h-24 animate-pulse" />)}
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -39,7 +47,7 @@ export default function DashboardContent({
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
           <div>
             <h1 className="text-lg lg:text-2xl font-bold mb-0.5 lg:mb-1">
-              안녕하세요, {userInfo.name}님
+              안녕하세요, {user.name}님
             </h1>
             <p className="text-blue-100 text-sm lg:text-base">
               {roleDisplayNames[userRole] || userRole}

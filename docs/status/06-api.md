@@ -155,12 +155,17 @@ export async function updateSession(request: NextRequest) {
 
 | 파일 | 주요 훅 | 용도 |
 |------|---------|------|
-| `departments.ts` | `useDepartments`, `useCells` | 부서/셀 목록 조회 |
+| `departments.ts` | `useDepartments`, `useCells` | 부서/셀 목록 조회 (staleTime 10분) |
 | `members.ts` | `useMembers`, `useDeleteMember` | 교인 CRUD |
 | `reports.ts` | `useReports` | 보고서 조회 |
 | `notifications.ts` | `useNotifications` | 알림 조회/읽음 |
-| `accounting.ts` | `useAccounting` | 회계 기록 조회 |
-| `attendance.ts` | `useAttendance` | 출결 기록 조회/수정 |
+| `accounting.ts` | `useAccountingRecordsByMonth` | 회계 기록 조회 (staleTime 60초) |
+| `attendance.ts` | `useAttendanceRecords`, `useToggleAttendance` | 출결 기록 조회/수정 |
+| `dashboard.ts` | `useRecentReports`, `useThisWeekReport`, `useDashboardPending`, `useThisWeekStats` | 대시보드 데이터 |
+| `users.ts` | `useAllUsers` | 전체 사용자 목록 (관리자용) |
+| `approvals.ts` | `usePendingReports`, `useCompletedReports` | 결재 대기/완료 보고서 |
+| `photos.ts` | `usePhotos` | 사진 목록 조회 |
+| `stats.ts` | `useDepartmentStats`, `useWeeklyTrend` | 통계 데이터 |
 
 ---
 

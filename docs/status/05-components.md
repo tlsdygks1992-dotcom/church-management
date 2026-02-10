@@ -10,10 +10,10 @@ src/components/
 ├── reports/         # ReportForm + ProgramTable, AttendanceInput, NewcomerSection, PhotoUploadSection
 ├── members/         # MemberForm + PhotoUploader, DepartmentSelector, MemberFilters, DeleteConfirmModal 등
 ├── accounting/      # AccountingLedger, ExpenseRequestForm/List, AccountingRecordForm, AccountingSummary
-├── attendance/      # AttendanceGrid
-├── dashboard/       # DashboardContent
-├── stats/           # 통계 차트
-├── users/           # UserManagement
+├── attendance/      # AttendanceClient → AttendanceGrid
+├── dashboard/       # DashboardContent (useAuth + TanStack Query)
+├── stats/           # StatsClient + 통계 차트
+├── users/           # UsersClient → UserManagement
 ├── notifications/   # NotificationBell, NotificationItem, PushPermission
 ├── pwa/             # ServiceWorkerRegistration, UpdatePrompt
 └── ui/              # Toast, ErrorBoundary, RichTextEditor, Skeleton, CellFilter
@@ -526,14 +526,16 @@ App Layout
     │   └── NotificationBell
     ├── error.tsx (대시보드 ErrorBoundary)
     │
-    ├── dashboard/page
-    │   └── DashboardContent
+    ├── dashboard/page ('use client' thin wrapper)
+    │   └── DashboardContent (useAuth + dashboard hooks)
     │
-    ├── attendance/page
-    │   └── AttendanceGrid
-    │       └── MemberRow (memoized)
+    ├── attendance/page ('use client' thin wrapper)
+    │   └── AttendanceClient (useAuth + useDepartments + 초기 로드)
+    │       └── AttendanceGrid
+    │           └── MemberRow (memoized)
     │
-    ├── reports/page
+    ├── reports/page ('use client' thin wrapper)
+    │   └── ReportListClient (useAuth + useDepartments + 자체 fetch)
     ├── reports/new/page
     │   └── ReportForm
     │       ├── ProgramTable
@@ -544,13 +546,14 @@ App Layout
     ├── reports/[id]/page
     │   └── ReportDetail
     │
-    ├── members/page
-    │   └── MemberList
-    │       ├── MemberFilters
-    │       │   └── CellFilter (memoized)
-    │       ├── MemberGridCard (memoized)
-    │       ├── MemberListItem (memoized)
-    │       └── DeleteConfirmModal
+    ├── members/page ('use client' thin wrapper)
+    │   └── MembersClient (useAuth + useDepartments + useMembers)
+    │       └── MemberList
+    │           ├── MemberFilters
+    │           │   └── CellFilter (memoized)
+    │           ├── MemberGridCard (memoized)
+    │           ├── MemberListItem (memoized)
+    │           └── DeleteConfirmModal
     ├── members/bulk-photos/page
     │   └── BulkPhotoUpload
     ├── members/new/page
@@ -561,6 +564,8 @@ App Layout
     ├── members/[id]/page
     │   └── MemberForm
     │
+    ├── accounting/page ('use client' thin wrapper)
+    │   └── AccountingClient (useAuth + useDepartments + useAccounting)
     ├── accounting/ledger/page
     │   └── AccountingLedger
     ├── accounting/expense/page
@@ -568,15 +573,22 @@ App Layout
     ├── accounting/expense/new/page
     │   └── ExpenseRequestForm
     │
-    ├── stats/page
-    │   └── StatsCharts (dynamic)
+    ├── stats/page ('use client' thin wrapper)
+    │   └── StatsClient (useDepartments + stats hooks)
     │
-    ├── approvals/page
+    ├── approvals/page ('use client' thin wrapper)
+    │   └── ApprovalsClient (useAuth + approvals hooks)
     │
-    ├── users/page
-    │   └── UserManagement
+    ├── users/page ('use client' thin wrapper)
+    │   └── UsersClient (useAuth + useAllUsers + useDepartments)
+    │       └── UserManagement
     │
-    └── photos/page
+    ├── photos/page ('use client' thin wrapper)
+    │   └── PhotosClient (useAuth + useDepartments + usePhotos)
+    │
+    └── [모든 page.tsx는 'use client' thin wrapper 패턴]
+        → Client 컴포넌트가 useAuth() + TanStack Query로 데이터 로드
+        → 캐시 덕분에 재방문 시 즉시 표시
 ```
 
 ---

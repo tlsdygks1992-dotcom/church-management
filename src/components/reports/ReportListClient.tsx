@@ -1,9 +1,12 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
+import { useAuth } from '@/providers/AuthProvider'
+import { useDepartments } from '@/queries/departments'
+import { canAccessAllDepartments, canWriteReport as checkCanWriteReport, getAccessibleDepartmentIds } from '@/lib/permissions'
 
 type ReportType = 'weekly' | 'meeting' | 'education'
 
@@ -19,39 +22,31 @@ interface Report {
   users: { name: string } | null
 }
 
-interface Department {
-  id: string
-  name: string
-  code: string
-}
-
-interface Props {
-  initialReports: Report[]
-  departments: Department[]
-  isAdmin: boolean
-  canWriteReport: boolean
-  userDepartmentIds: string[]
-}
-
 const REPORT_TYPE_CONFIG: Record<ReportType, { label: string; icon: string; color: string }> = {
   weekly: { label: '주차 보고서', icon: '📋', color: 'blue' },
   meeting: { label: '모임 보고서', icon: '👥', color: 'green' },
   education: { label: '교육 보고서', icon: '📚', color: 'purple' },
 }
 
-export default function ReportListClient({
-  initialReports,
-  departments,
-  isAdmin,
-  canWriteReport,
-  userDepartmentIds
-}: Props) {
+export default function ReportListClient() {
+  const { user } = useAuth()
+  const { data: allDepartments = [] } = useDepartments()
+
+  const isAdmin = canAccessAllDepartments(user?.role || '')
+  const canWriteReport = checkCanWriteReport(user)
+  const userDepartmentIds = useMemo(() => getAccessibleDepartmentIds(user), [user])
+
+  const departments = useMemo(() => {
+    if (isAdmin) return allDepartments
+    return allDepartments.filter(d => userDepartmentIds.includes(d.id))
+  }, [isAdmin, allDepartments, userDepartmentIds])
+
   const supabase = useMemo(() => createClient(), [])
   const searchParams = useSearchParams()
   const router = useRouter()
 
-  const [reports, setReports] = useState<Report[]>(initialReports)
-  const [loading, setLoading] = useState(false)
+  const [reports, setReports] = useState<Report[]>([])
+  const [loading, setLoading] = useState(true)
   const [selectedDept, setSelectedDept] = useState<string>('all')
 
   const selectedType = (searchParams.get('type') as ReportType) || 'weekly'
@@ -67,10 +62,8 @@ export default function ReportListClient({
       .limit(50)
 
     if (deptId !== 'all') {
-      // 특정 부서 선택 시
       query = query.eq('department_id', deptId)
     } else if (!isAdmin && userDepartmentIds.length > 0) {
-      // 비관리자: "전체" 선택 시 소속 부서만
       query = query.in('department_id', userDepartmentIds)
     }
 
@@ -78,6 +71,13 @@ export default function ReportListClient({
     setReports((data || []) as Report[])
     setLoading(false)
   }, [supabase, isAdmin, userDepartmentIds])
+
+  // 초기 로드 (user 정보가 준비되면)
+  useEffect(() => {
+    if (user) {
+      loadReports(selectedType, selectedDept)
+    }
+  }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleTypeChange = useCallback((type: ReportType) => {
     router.push(`/reports?type=${type}`)
@@ -88,6 +88,18 @@ export default function ReportListClient({
     setSelectedDept(deptId)
     loadReports(selectedType, deptId)
   }, [loadReports, selectedType])
+
+  if (!user) {
+    return (
+      <div className="space-y-4 lg:space-y-6 max-w-4xl mx-auto">
+        <div className="h-8 w-32 bg-gray-200 rounded animate-pulse" />
+        <div className="flex gap-2">
+          {[1,2,3].map(i => <div key={i} className="h-10 w-28 bg-gray-100 rounded-xl animate-pulse" />)}
+        </div>
+        <div className="bg-gray-100 rounded-2xl h-64 animate-pulse" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4 lg:space-y-6 max-w-4xl mx-auto">
@@ -132,7 +144,7 @@ export default function ReportListClient({
         })}
       </div>
 
-      {/* 부서 필터 (관리자 또는 소속 부서 2개 이상) */}
+      {/* 부서 필터 */}
       {(isAdmin || departments.length > 1) && (
         <div className="flex gap-2 overflow-x-auto pb-1">
           <button

@@ -1,36 +1,19 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { createApprovalNotification } from '@/lib/notifications'
 import { useToastContext } from '@/providers/ToastProvider'
-import type { WeeklyReport, ReportProgram, Newcomer, ApprovalHistory, User } from '@/types/database'
+import { useAuth } from '@/providers/AuthProvider'
+import { canAccessAllDepartments } from '@/lib/permissions'
+import { useReportDetail, useReportPrograms, useReportNewcomers, useApprovalHistory } from '@/queries/reports'
 
 type ReportType = 'weekly' | 'meeting' | 'education'
 
-interface ExtendedReport extends WeeklyReport {
-  report_type: ReportType
-  meeting_title: string | null
-  meeting_location: string | null
-  attendees: string | null
-  main_content: string | null
-  application_notes: string | null
-  departments: { name: string; code?: string } | null
-  users: { name: string } | null
-  coordinator: { name: string } | null
-  manager: { name: string } | null
-  final_approver: { name: string } | null
-}
-
 interface ReportDetailProps {
-  report: ExtendedReport
-  programs: ReportProgram[]
-  newcomers: Newcomer[]
-  history: (ApprovalHistory & { users: { name: string } | null })[]
-  currentUser: User | null
-  canApprove: string | null
-  canDelete: boolean
+  reportId: string
 }
 
 const REPORT_TYPE_CONFIG: Record<ReportType, { label: string; icon: string }> = {
@@ -39,18 +22,42 @@ const REPORT_TYPE_CONFIG: Record<ReportType, { label: string; icon: string }> = 
   education: { label: '교육 보고서', icon: '📚' },
 }
 
-export default function ReportDetail({
-  report,
-  programs,
-  newcomers,
-  history,
-  currentUser,
-  canApprove,
-  canDelete,
-}: ReportDetailProps) {
+/** 결재 단계별 권한 확인 */
+function checkApprovalPermission(userRole: string, reportStatus: string): string | null {
+  // 보고 체계: 팀장 → 회장(협조) → 부장(결재) → 목사(확인)
+  if (reportStatus === 'submitted') {
+    if (userRole === 'president' || userRole === 'super_admin') return 'coordinator'
+  }
+  if (reportStatus === 'coordinator_reviewed') {
+    if (userRole === 'accountant' || userRole === 'super_admin') return 'manager'
+  }
+  if (reportStatus === 'manager_approved') {
+    if (userRole === 'super_admin') return 'final'
+  }
+  return null
+}
+
+export default function ReportDetail({ reportId }: ReportDetailProps) {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const supabase = createClient()
   const toast = useToastContext()
+  const { user: currentUser } = useAuth()
+
+  // 데이터 조회
+  const { data: report, isLoading: reportLoading } = useReportDetail(reportId)
+  const { data: programs = [], isLoading: programsLoading } = useReportPrograms(reportId)
+  const { data: newcomers = [] } = useReportNewcomers(reportId)
+  const { data: history = [] } = useApprovalHistory(reportId)
+
+  // 권한 계산
+  const userRole = currentUser?.role || ''
+  const canApprove = useMemo(
+    () => report ? checkApprovalPermission(userRole, report.status) : null,
+    [userRole, report?.status]
+  )
+  const canDelete = canAccessAllDepartments(userRole)
+
   const [loading, setLoading] = useState(false)
   const [comment, setComment] = useState('')
   const [showApprovalModal, setShowApprovalModal] = useState(false)
@@ -58,11 +65,53 @@ export default function ReportDetail({
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
 
+  // 로딩 상태
+  if (reportLoading || programsLoading || !currentUser) {
+    return (
+      <div className="max-w-4xl mx-auto p-4 md:p-6">
+        <div className="animate-pulse space-y-4">
+          <div className="h-24 bg-gray-100 rounded-2xl" />
+          <div className="h-40 bg-gray-100 rounded-2xl" />
+          <div className="h-32 bg-gray-100 rounded-2xl" />
+        </div>
+      </div>
+    )
+  }
+
+  // 보고서 없음
+  if (!report) {
+    return (
+      <div className="max-w-4xl mx-auto p-4 md:p-6 text-center">
+        <div className="bg-gray-50 rounded-2xl p-8">
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">보고서를 찾을 수 없습니다</h2>
+          <button onClick={() => router.push('/reports')} className="text-blue-600 text-sm hover:underline">
+            보고서 목록으로 돌아가기
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // 부서 접근 제한: 비관리자는 소속 부서의 보고서만 열람 가능
+  if (!canAccessAllDepartments(userRole)) {
+    const userDeptIds = currentUser.user_departments?.map(ud => ud.department_id) || []
+    if (!userDeptIds.includes(report.department_id)) {
+      return (
+        <div className="max-w-4xl mx-auto p-4 md:p-6 text-center">
+          <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-8">
+            <h2 className="text-lg font-semibold text-yellow-800 mb-2">접근 권한 없음</h2>
+            <p className="text-sm text-yellow-600">소속 부서의 보고서만 열람할 수 있습니다.</p>
+          </div>
+        </div>
+      )
+    }
+  }
+
   // 작성자이고 제출된 상태일 때만 취소 가능
   const canCancelSubmission = currentUser?.id === report.author_id && report.status === 'submitted'
 
-  const reportType = report.report_type || 'weekly'
-  const typeConfig = REPORT_TYPE_CONFIG[reportType]
+  const reportType = (report as any).report_type || 'weekly'
+  const typeConfig = REPORT_TYPE_CONFIG[reportType as ReportType]
 
   // 부서명 표시
   const getDeptDisplayName = useCallback(() => {
@@ -240,7 +289,10 @@ export default function ReportDetail({
         comment: '제출 취소',
       })
 
-      router.refresh()
+      // 쿼리 캐시 무효화 → 자동 refetch
+      await queryClient.invalidateQueries({ queryKey: ['approvals'] })
+      await queryClient.invalidateQueries({ queryKey: ['reports'] })
+      toast.success('제출이 취소되었습니다.')
     } catch (error) {
       console.error('Failed to cancel submission:', error)
       toast.error('제출 취소 중 오류가 발생했습니다.')
@@ -267,6 +319,9 @@ export default function ReportDetail({
       const { error } = await supabase.from('weekly_reports').delete().eq('id', report.id)
       if (error) throw error
 
+      // 관련 쿼리 캐시 무효화
+      await queryClient.invalidateQueries({ queryKey: ['approvals'] })
+      await queryClient.invalidateQueries({ queryKey: ['reports'] })
       toast.success('보고서가 삭제되었습니다.')
       router.push('/reports')
     } catch (error) {
@@ -336,7 +391,10 @@ export default function ReportDetail({
         }),
       ])
 
-      router.refresh()
+      // 쿼리 캐시 무효화 → 자동 refetch
+      await queryClient.invalidateQueries({ queryKey: ['approvals'] })
+      await queryClient.invalidateQueries({ queryKey: ['reports'] })
+      setComment('')
     } catch (error) {
       console.error(error)
       // 실패 시 모달 다시 열기
