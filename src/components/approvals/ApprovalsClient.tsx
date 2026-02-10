@@ -2,16 +2,9 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-
-interface Report {
-  id: string
-  title: string
-  report_date: string
-  status: string
-  created_at: string
-  departments: { name: string; code: string } | null
-  users: { name: string } | null
-}
+import { useAuth } from '@/providers/AuthProvider'
+import { canApprove } from '@/lib/permissions'
+import { usePendingReports, useCompletedReports, type ApprovalReport } from '@/queries/approvals'
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string }> = {
   submitted: {
@@ -42,18 +35,43 @@ const ROLE_LABELS: Record<string, string> = {
   accountant: '결재',
 }
 
-interface ApprovalsClientProps {
-  userRole: string
-  pendingReports: Report[]
-  completedReports: Report[]
-}
+export default function ApprovalsClient() {
+  const { user } = useAuth()
+  const userRole = user?.role || ''
 
-export default function ApprovalsClient({
-  userRole,
-  pendingReports,
-  completedReports,
-}: ApprovalsClientProps) {
+  const { data: pendingReports = [], isLoading: pendingLoading } = usePendingReports(userRole)
+  const { data: completedReports = [], isLoading: completedLoading } = useCompletedReports(userRole)
+
   const [filter, setFilter] = useState<'pending' | 'completed'>('pending')
+
+  // 결재 권한 체크
+  if (!user) {
+    return (
+      <div className="p-4 md:p-6">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 bg-gray-200 rounded w-24" />
+          <div className="h-20 bg-gray-100 rounded-xl" />
+        </div>
+      </div>
+    )
+  }
+
+  if (!canApprove(userRole)) {
+    return (
+      <div className="p-4 md:p-6">
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 md:p-6 text-center">
+          <svg className="w-10 h-10 md:w-12 md:h-12 text-yellow-500 mx-auto mb-3 md:mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <h3 className="text-base md:text-lg font-semibold text-yellow-800 mb-2">접근 권한 없음</h3>
+          <p className="text-sm md:text-base text-yellow-600">결재 권한이 있는 사용자만 접근할 수 있습니다.</p>
+        </div>
+      </div>
+    )
+  }
+
+  const isLoading = pendingLoading || completedLoading
+  const displayReports = filter === 'pending' ? pendingReports : completedReports
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr)
@@ -65,8 +83,6 @@ export default function ApprovalsClient({
     const firstDay = new Date(date.getFullYear(), date.getMonth(), 1)
     return Math.ceil((date.getDate() + firstDay.getDay()) / 7)
   }
-
-  const displayReports = filter === 'pending' ? pendingReports : completedReports
 
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6">
@@ -120,7 +136,9 @@ export default function ApprovalsClient({
             </div>
             <div>
               <p className="text-xs md:text-sm text-gray-500">{ROLE_LABELS[userRole]} 대기</p>
-              <p className="text-lg md:text-xl font-bold text-gray-900">{pendingReports.length}건</p>
+              <p className="text-lg md:text-xl font-bold text-gray-900">
+                {pendingLoading ? '...' : `${pendingReports.length}건`}
+              </p>
             </div>
           </div>
         </div>
@@ -134,7 +152,9 @@ export default function ApprovalsClient({
             </div>
             <div>
               <p className="text-xs md:text-sm text-gray-500">처리 완료</p>
-              <p className="text-lg md:text-xl font-bold text-gray-900">{completedReports.length}건</p>
+              <p className="text-lg md:text-xl font-bold text-gray-900">
+                {completedLoading ? '...' : `${completedReports.length}건`}
+              </p>
             </div>
           </div>
         </div>
@@ -158,7 +178,12 @@ export default function ApprovalsClient({
 
       {/* 보고서 목록 */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        {displayReports.length === 0 ? (
+        {isLoading ? (
+          <div className="p-8 flex items-center justify-center">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+            <span className="ml-2 text-sm text-gray-500">로딩 중...</span>
+          </div>
+        ) : displayReports.length === 0 ? (
           <div className="p-8 md:p-12 text-center">
             <svg className="w-12 h-12 md:w-16 md:h-16 text-gray-300 mx-auto mb-3 md:mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -172,7 +197,7 @@ export default function ApprovalsClient({
           </div>
         ) : (
           <div className="divide-y divide-gray-100">
-            {displayReports.map((report) => {
+            {displayReports.map((report: ApprovalReport) => {
               const status = STATUS_CONFIG[report.status] || STATUS_CONFIG.submitted
               const weekNum = getWeekNumber(report.report_date)
 

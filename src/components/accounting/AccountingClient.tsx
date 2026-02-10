@@ -1,69 +1,61 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
-import { AccountingRecordWithDetails, Department } from '@/types/database'
+import { useAuth } from '@/providers/AuthProvider'
+import { useDepartments } from '@/queries/departments'
+import { useAccountingRecordsByMonth } from '@/queries/accounting'
+import { canAccessAllDepartments } from '@/lib/permissions'
 import AccountingLedger from '@/components/accounting/AccountingLedger'
 import AccountingSummary from '@/components/accounting/AccountingSummary'
 import AccountingImport from '@/components/accounting/AccountingImport'
 import { exportAccountingToExcel, AccountingImportRow } from '@/lib/excel'
-import { useAccountingRecordsByMonth } from '@/queries/accounting'
 import Link from 'next/link'
 
-interface AccountingClientProps {
-  departments: Department[]
-  initialDeptId: string
-  initialRecords: AccountingRecordWithDetails[]
-  canEdit: boolean
-  userId: string
-}
+export default function AccountingClient() {
+  const { user } = useAuth()
+  const { data: allDepts = [], isLoading: deptsLoading } = useDepartments()
 
-export default function AccountingClient({
-  departments,
-  initialDeptId,
-  initialRecords,
-  canEdit,
-  userId,
-}: AccountingClientProps) {
   const now = new Date()
-  const initialYear = now.getFullYear()
-  const initialMonth = now.getMonth() + 1
-
-  const [selectedDeptId, setSelectedDeptId] = useState(initialDeptId)
-  const [selectedYear, setSelectedYear] = useState(initialYear)
-  const [selectedMonth, setSelectedMonth] = useState(initialMonth)
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear())
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1)
   const [showImportModal, setShowImportModal] = useState(false)
   const [importing, setImporting] = useState(false)
 
   const queryClient = useQueryClient()
 
-  // 서버에서 받은 초기 데이터를 TanStack Query 캐시에 주입 (1회만)
-  const hydrated = useRef(false)
-  if (!hydrated.current) {
-    queryClient.setQueryData(
-      ['accounting', initialDeptId, initialYear, initialMonth],
-      initialRecords,
-    )
-    hydrated.current = true
-  }
+  // 권한에 따라 부서 필터링
+  const departments = useMemo(() => {
+    if (!user) return []
+    if (canAccessAllDepartments(user.role)) return allDepts
+    const userDeptIds = user.user_departments?.map(ud => ud.department_id) || []
+    return allDepts.filter(d => userDeptIds.includes(d.id))
+  }, [user, allDepts])
+
+  const canEdit = canAccessAllDepartments(user?.role || '')
+
+  const [selectedDeptId, setSelectedDeptId] = useState('')
+
+  // 부서 로드 완료 시 첫 번째 부서 자동 선택
+  const effectiveDeptId = selectedDeptId || departments[0]?.id || ''
 
   // TanStack Query로 회계 데이터 관리 (캐싱 + 자동 리페치)
-  const { data: records = [], isLoading } = useAccountingRecordsByMonth(
-    selectedDeptId,
+  const { data: records = [], isLoading: recordsLoading } = useAccountingRecordsByMonth(
+    effectiveDeptId,
     selectedYear,
     selectedMonth,
   )
 
   const handleRecordDeleted = useCallback(() => {
     queryClient.invalidateQueries({
-      queryKey: ['accounting', selectedDeptId, selectedYear, selectedMonth],
+      queryKey: ['accounting', effectiveDeptId, selectedYear, selectedMonth],
     })
-  }, [queryClient, selectedDeptId, selectedYear, selectedMonth])
+  }, [queryClient, effectiveDeptId, selectedYear, selectedMonth])
 
   // 엑셀 내보내기
   const handleExport = useCallback(async () => {
-    const selectedDept = departments.find(d => d.id === selectedDeptId)
+    const selectedDept = departments.find(d => d.id === effectiveDeptId)
     const exportData = records.map(r => ({
       day: new Date(r.record_date).getDate(),
       description: r.description,
@@ -80,11 +72,11 @@ export default function AccountingClient({
       selectedYear,
       selectedMonth
     )
-  }, [records, departments, selectedDeptId, selectedYear, selectedMonth])
+  }, [records, departments, effectiveDeptId, selectedYear, selectedMonth])
 
   // 엑셀 가져오기
   const handleImport = useCallback(async (data: AccountingImportRow[]) => {
-    if (!selectedDeptId || !userId) return
+    if (!effectiveDeptId || !user?.id) return
 
     setImporting(true)
     const supabase = createClient()
@@ -98,7 +90,7 @@ export default function AccountingClient({
       const { data: prevRecords } = await supabase
         .from('accounting_records')
         .select('income_amount, expense_amount')
-        .eq('department_id', selectedDeptId)
+        .eq('department_id', effectiveDeptId)
         .lte('record_date', prevEndDate)
         .order('record_date', { ascending: true })
         .order('created_at', { ascending: true })
@@ -118,7 +110,7 @@ export default function AccountingClient({
         currentBalance += row.incomeAmount - row.expenseAmount
 
         await supabase.from('accounting_records').insert({
-          department_id: selectedDeptId,
+          department_id: effectiveDeptId,
           record_date: recordDate,
           description: row.description,
           income_amount: row.incomeAmount,
@@ -126,13 +118,13 @@ export default function AccountingClient({
           balance: currentBalance,
           category: row.category,
           notes: row.notes || null,
-          created_by: userId
+          created_by: user.id
         })
       }
 
       // TanStack Query 캐시 무효화 → 자동 리페치
       queryClient.invalidateQueries({
-        queryKey: ['accounting', selectedDeptId, selectedYear, selectedMonth],
+        queryKey: ['accounting', effectiveDeptId, selectedYear, selectedMonth],
       })
       setShowImportModal(false)
       alert(`${data.length}건의 데이터를 가져왔습니다.`)
@@ -142,10 +134,23 @@ export default function AccountingClient({
     }
 
     setImporting(false)
-  }, [selectedDeptId, selectedYear, selectedMonth, userId, queryClient])
+  }, [effectiveDeptId, selectedYear, selectedMonth, user?.id, queryClient])
 
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i)
   const months = Array.from({ length: 12 }, (_, i) => i + 1)
+
+  // 초기 로딩 상태
+  if (!user || deptsLoading) {
+    return (
+      <div className="p-4 lg:p-8">
+        <div className="animate-pulse space-y-6">
+          <div className="h-8 bg-gray-200 rounded w-32" />
+          <div className="h-12 bg-gray-100 rounded-xl" />
+          <div className="h-40 bg-gray-100 rounded-xl" />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="p-4 lg:p-8">
@@ -204,7 +209,7 @@ export default function AccountingClient({
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">부서</label>
             <select
-              value={selectedDeptId}
+              value={effectiveDeptId}
               onChange={(e) => setSelectedDeptId(e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
@@ -239,7 +244,7 @@ export default function AccountingClient({
           </div>
 
           {/* 로딩 인디케이터 (필터 변경 시) */}
-          {isLoading && (
+          {recordsLoading && (
             <div className="flex items-end pb-2">
               <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
             </div>
@@ -252,7 +257,7 @@ export default function AccountingClient({
         records={records}
         year={selectedYear}
         month={selectedMonth}
-        departmentId={selectedDeptId}
+        departmentId={effectiveDeptId}
       />
 
       {/* 회계장부 테이블 */}

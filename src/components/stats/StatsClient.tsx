@@ -1,18 +1,12 @@
 'use client'
 
 import { useState, useMemo, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import dynamic from 'next/dynamic'
 import { exportStatsToExcel } from '@/lib/excel'
 import { ChartSkeleton } from '@/components/ui/Skeleton'
 import CellFilter from '@/components/ui/CellFilter'
-import {
-  computeDepartmentStats,
-  computeWeeklyTrend,
-  getStartDate,
-  type DepartmentStats,
-  type WeeklyStats,
-} from '@/lib/stats-queries'
+import { useDepartments } from '@/queries/departments'
+import { useDepartmentStats, useWeeklyTrend } from '@/queries/stats'
 
 type TabType = 'attendance' | 'reports'
 type Period = 'month' | 'quarter' | 'year'
@@ -46,62 +40,32 @@ const ReportStatsContent = dynamic(
   )}
 )
 
-interface Department {
-  id: string
-  name: string
-  code: string
-}
+export default function StatsClient() {
+  const { data: departments = [], isLoading: deptsLoading } = useDepartments()
 
-interface StatsClientProps {
-  departments: Department[]
-  initialDepartmentStats: DepartmentStats[]
-  initialWeeklyStats: WeeklyStats[]
-}
-
-export default function StatsClient({
-  departments,
-  initialDepartmentStats,
-  initialWeeklyStats,
-}: StatsClientProps) {
   const [activeTab, setActiveTab] = useState<TabType>('attendance')
   const [selectedDept, setSelectedDept] = useState<string>('all')
   const [selectedCell, setSelectedCell] = useState<string>('all')
-  const [weeklyStats, setWeeklyStats] = useState<WeeklyStats[]>(initialWeeklyStats)
-  const [departmentStats, setDepartmentStats] = useState<DepartmentStats[]>(initialDepartmentStats)
-  const [loading, setLoading] = useState(false)
   const [period, setPeriod] = useState<Period>('month')
 
-  // 통계 재로드 (필터 변경 시)
-  const loadStats = useCallback(async (dept: string, cell: string, p: Period) => {
-    setLoading(true)
-    const supabase = createClient()
-    const startDate = getStartDate(p)
+  // TanStack Query로 통계 관리 (캐싱 + 자동 리페치)
+  const { data: departmentStats = [], isLoading: deptStatsLoading } = useDepartmentStats(departments, period)
+  const { data: weeklyStats = [], isLoading: weeklyLoading } = useWeeklyTrend(selectedDept, selectedCell, period)
 
-    const [deptStats, weekly] = await Promise.all([
-      computeDepartmentStats(supabase, departments, startDate, p),
-      computeWeeklyTrend(supabase, dept, cell, startDate),
-    ])
-
-    setDepartmentStats(deptStats)
-    setWeeklyStats(weekly)
-    setLoading(false)
-  }, [departments])
+  const loading = deptStatsLoading || weeklyLoading
 
   const handleDeptChange = useCallback((dept: string) => {
     setSelectedDept(dept)
     setSelectedCell('all')
-    loadStats(dept, 'all', period)
-  }, [loadStats, period])
+  }, [])
 
   const handleCellChange = useCallback((cell: string) => {
     setSelectedCell(cell)
-    loadStats(selectedDept, cell, period)
-  }, [loadStats, selectedDept, period])
+  }, [])
 
   const handlePeriodChange = useCallback((p: Period) => {
     setPeriod(p)
-    loadStats(selectedDept, selectedCell, p)
-  }, [loadStats, selectedDept, selectedCell])
+  }, [])
 
   // 전체 통계 계산
   const { totalWorshipCount, totalMeetingCount, totalMemberCount, avgWorshipRate, avgMeetingRate } = useMemo(() => {
@@ -122,6 +86,21 @@ export default function StatsClient({
       avgMeetingRate: meetingRate
     }
   }, [departmentStats])
+
+  // 초기 로딩
+  if (deptsLoading) {
+    return (
+      <div className="p-4 md:p-6">
+        <div className="animate-pulse space-y-6">
+          <div className="h-8 bg-gray-200 rounded w-24" />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[1, 2, 3, 4].map(i => <div key={i} className="h-24 bg-gray-100 rounded-xl" />)}
+          </div>
+          <div className="h-64 bg-gray-100 rounded-xl" />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6">

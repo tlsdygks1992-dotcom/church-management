@@ -1,55 +1,34 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
+import { useAuth } from '@/providers/AuthProvider'
+import { useDepartments } from '@/queries/departments'
+import { usePhotos, type Photo } from '@/queries/photos'
 import Image from 'next/image'
-
-interface Department {
-  id: string
-  name: string
-  code: string
-}
-
-interface Photo {
-  id: string
-  photo_url: string
-  title: string | null
-  description: string | null
-  photo_date: string | null
-  created_at: string
-  departments: { name: string } | null
-  users: { name: string } | null
-}
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 
-interface PhotosClientProps {
-  departments: Department[]
-  initialPhotos: Photo[]
-  canUpload: boolean
-  userId: string | null
-  userDeptId: string | null
-}
+export default function PhotosClient() {
+  const { user } = useAuth()
+  const { data: departments = [], isLoading: deptsLoading } = useDepartments()
+  const queryClient = useQueryClient()
 
-export default function PhotosClient({
-  departments,
-  initialPhotos,
-  canUpload,
-  userId,
-  userDeptId,
-}: PhotosClientProps) {
-  const [photos, setPhotos] = useState<Photo[]>(initialPhotos)
-  const [loading, setLoading] = useState(false)
-  const [uploading, setUploading] = useState(false)
   const [selectedDept, setSelectedDept] = useState<string>('all')
+  const { data: photos = [], isLoading: photosLoading } = usePhotos(selectedDept)
+
+  const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // 모달 상태
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null)
+
+  const userDeptId = user?.user_departments?.[0]?.department_id || departments[0]?.id || ''
   const [uploadForm, setUploadForm] = useState({
-    department_id: userDeptId || departments[0]?.id || '',
+    department_id: userDeptId,
     title: '',
     description: '',
     photo_date: new Date().toISOString().split('T')[0],
@@ -57,31 +36,13 @@ export default function PhotosClient({
   const [uploadFiles, setUploadFiles] = useState<File[]>([])
   const [uploadPreviews, setUploadPreviews] = useState<string[]>([])
 
-  // 부서 필터 변경 시 사진 재로드
-  const loadPhotos = useCallback(async (dept: string) => {
-    setLoading(true)
-    const supabase = createClient()
-
-    let query = supabase
-      .from('department_photos')
-      .select('*, departments(name), users:uploaded_by(name)')
-      .order('photo_date', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(100)
-
-    if (dept !== 'all') {
-      query = query.eq('department_id', dept)
-    }
-
-    const { data: photosData } = await query
-    setPhotos((photosData || []) as Photo[])
-    setLoading(false)
-  }, [])
+  // 업로드 권한 체크
+  const adminRoles = ['super_admin', 'president', 'accountant', 'team_leader']
+  const canUpload = adminRoles.includes(user?.role || '')
 
   const handleDeptChange = useCallback((dept: string) => {
     setSelectedDept(dept)
-    loadPhotos(dept)
-  }, [loadPhotos])
+  }, [])
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
@@ -121,8 +82,8 @@ export default function PhotosClient({
   }
 
   const handleUpload = async () => {
-    if (uploadFiles.length === 0 || !userId) {
-      setError(`업로드 불가: files=${uploadFiles.length}, userId=${userId}`)
+    if (uploadFiles.length === 0 || !user?.id) {
+      setError(`업로드 불가: files=${uploadFiles.length}, userId=${user?.id}`)
       return
     }
 
@@ -158,7 +119,7 @@ export default function PhotosClient({
           title: uploadForm.title || null,
           description: uploadForm.description || null,
           photo_date: uploadForm.photo_date || null,
-          uploaded_by: userId,
+          uploaded_by: user.id,
         })
 
         if (dbError) {
@@ -179,7 +140,8 @@ export default function PhotosClient({
       setUploadPreviews([])
       setUploadForm(prev => ({ ...prev, title: '', description: '' }))
       setError(null)
-      loadPhotos(selectedDept)
+      // TanStack Query 캐시 무효화 → 자동 리페치
+      queryClient.invalidateQueries({ queryKey: ['photos'] })
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '알 수 없는 오류'
       setError(`예외 발생: ${message}`)
@@ -201,12 +163,29 @@ export default function PhotosClient({
 
       await supabase.from('department_photos').delete().eq('id', photo.id)
 
-      setPhotos(prev => prev.filter(p => p.id !== photo.id))
       setSelectedPhoto(null)
       setError(null)
+      queryClient.invalidateQueries({ queryKey: ['photos'] })
     } catch {
       setError('삭제 중 오류가 발생했습니다.')
     }
+  }
+
+  // 초기 로딩
+  if (!user || deptsLoading) {
+    return (
+      <div className="space-y-4 lg:space-y-6 max-w-6xl mx-auto">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 bg-gray-200 rounded w-32" />
+          <div className="flex gap-2">
+            {[1, 2, 3, 4].map(i => <div key={i} className="h-10 bg-gray-100 rounded-xl w-20" />)}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+            {[1, 2, 3, 4, 5, 6].map(i => <div key={i} className="aspect-square bg-gray-100 rounded-xl" />)}
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -275,7 +254,7 @@ export default function PhotosClient({
       </div>
 
       {/* 사진 그리드 */}
-      {loading ? (
+      {photosLoading ? (
         <div className="py-12 flex items-center justify-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
