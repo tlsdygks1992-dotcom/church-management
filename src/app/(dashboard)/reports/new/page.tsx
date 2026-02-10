@@ -1,8 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { useAuth } from '@/providers/AuthProvider'
+import { useDepartments } from '@/queries/departments'
+import { isAdmin as checkAdmin } from '@/lib/permissions'
 import ReportForm from '@/components/reports/ReportForm'
 
 type ReportType = 'weekly' | 'meeting' | 'education'
@@ -13,21 +15,11 @@ const REPORT_TYPE_CONFIG: Record<ReportType, { label: string; icon: string }> = 
   education: { label: '교육 보고서', icon: '📚' },
 }
 
-interface Department {
-  id: string
-  name: string
-  code: string
-}
-
 export default function NewReportPage() {
-  const supabase = createClient()
   const searchParams = useSearchParams()
   const reportType = (searchParams.get('type') as ReportType) || 'weekly'
-
-  const [loading, setLoading] = useState(true)
-  const [userId, setUserId] = useState<string | null>(null)
-  const [departments, setDepartments] = useState<Department[]>([])
-  const [canWrite, setCanWrite] = useState(false)
+  const { user } = useAuth()
+  const { data: allDepartments = [], isLoading: deptsLoading } = useDepartments()
 
   // 이번 주 일요일
   const now = new Date()
@@ -41,50 +33,31 @@ export default function NewReportPage() {
     ((now.getTime() - startOfYear.getTime()) / 86400000 + startOfYear.getDay() + 1) / 7
   )
 
-  useEffect(() => {
-    loadData()
-  }, [])
+  // 작성 가능 부서 (관리자: 전체, 팀장: is_team_leader=true인 부서만)
+  const { canWrite, departments } = useMemo(() => {
+    if (!user) return { canWrite: false, departments: [] }
 
-  const loadData = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    setUserId(user.id)
-
-    const { data: userData } = await supabase
-      .from('users')
-      .select('*, user_departments(department_id, is_team_leader, departments(id, name, code))')
-      .eq('id', user.id)
-      .single()
-
-    // 팀장 이상 권한 체크: super_admin, president, accountant, team_leader
     const adminRoles = ['super_admin', 'president', 'accountant', 'team_leader']
-    const isAdmin = adminRoles.includes(userData?.role)
-    const isTeamLeader = userData?.user_departments?.some((ud: { is_team_leader: boolean }) => ud.is_team_leader)
+    const admin = checkAdmin(user.role) || adminRoles.includes(user.role)
+    const isTeamLeader = user.user_departments?.some((ud: { is_team_leader: boolean }) => ud.is_team_leader)
 
-    if (!isAdmin && !isTeamLeader) {
-      setCanWrite(false)
-      setLoading(false)
-      return
+    if (!admin && !isTeamLeader) {
+      return { canWrite: false, departments: [] }
     }
 
-    setCanWrite(true)
-
-    // 작성 가능한 부서
-    if (isAdmin) {
-      const { data } = await supabase.from('departments').select('id, name, code')
-      setDepartments(data || [])
-    } else {
-      const depts = userData?.user_departments
-        ?.filter((ud: { is_team_leader: boolean }) => ud.is_team_leader)
-        .map((ud: { departments: Department }) => ud.departments) || []
-      setDepartments(depts)
+    if (admin) {
+      return { canWrite: true, departments: allDepartments.map(d => ({ id: d.id, name: d.name, code: d.code })) }
     }
 
-    setLoading(false)
-  }
+    // 팀장: is_team_leader=true인 부서만
+    const depts = user.user_departments
+      ?.filter((ud: { is_team_leader: boolean }) => ud.is_team_leader)
+      .map((ud: { departments: { id: string; name: string; code: string } }) => ud.departments) || []
+    return { canWrite: true, departments: depts }
+  }, [user, allDepartments])
 
-  if (loading) {
+  // 로딩 상태
+  if (!user || deptsLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -121,7 +94,7 @@ export default function NewReportPage() {
         departments={departments}
         defaultDate={sundayStr}
         weekNumber={weekNumber}
-        authorId={userId!}
+        authorId={user.id}
       />
     </div>
   )
