@@ -109,6 +109,24 @@ export function useApprovalHistory(reportId: string | undefined) {
   })
 }
 
+/** 특정 부서에서 is_team_leader=true인 사용자 ID 목록 조회 */
+export function useTeamLeaderIds(departmentId: string | undefined) {
+  return useQuery({
+    queryKey: ['team-leaders', departmentId],
+    queryFn: async (): Promise<string[]> => {
+      const { data, error } = await supabase
+        .from('user_departments')
+        .select('user_id')
+        .eq('department_id', departmentId!)
+        .eq('is_team_leader', true)
+      if (error) throw error
+      return (data || []).map((d: { user_id: string }) => d.user_id)
+    },
+    enabled: !!departmentId,
+    staleTime: 5 * 60_000, // 5분 캐싱
+  })
+}
+
 /** 보고서 목록 조회 */
 export function useReports(options?: {
   departmentId?: string

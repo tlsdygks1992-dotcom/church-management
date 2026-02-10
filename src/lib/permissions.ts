@@ -67,3 +67,49 @@ export function getTeamLeaderDepartments(user: UserData | null): Array<{ id: str
     ?.filter(ud => ud.is_team_leader)
     .map(ud => ud.departments) || []
 }
+
+// ─── 보고서 열람 권한 ─────────────────────────────────
+
+/**
+ * 보고서 열람 권한 체크
+ * - 작성자: 항상 가능
+ * - 관리자(super_admin, president, accountant): 모든 보고서
+ * - 부서 팀장(is_team_leader=true): 해당 부서 전체 보고서
+ * - 셀장(is_team_leader=false, role=team_leader): 같은 레벨(셀장) 보고서만
+ * - 일반 멤버: 자기 보고서만
+ * - 임시저장(draft): 작성자만
+ *
+ * @param authorIsTeamLeader 보고서 작성자의 is_team_leader 여부 (해당 부서 기준)
+ */
+export function canViewReport(
+  user: UserData | null,
+  report: { author_id: string; department_id: string; status?: string },
+  authorIsTeamLeader?: boolean
+): boolean {
+  if (!user) return false
+
+  // 1. 작성자는 항상 열람 가능
+  if (user.id === report.author_id) return true
+
+  // 2. 임시저장은 작성자만
+  if (report.status === 'draft') return false
+
+  // 3. 관리자 역할은 모든 보고서 열람 가능
+  if (canAccessAllDepartments(user.role)) return true
+
+  // 4. 같은 부서 소속 확인
+  const userDept = user.user_departments?.find(ud => ud.department_id === report.department_id)
+  if (!userDept) return false
+
+  // 5. 부서 팀장 (is_team_leader=true) → 부서 전체 보고서 열람
+  if (userDept.is_team_leader) return true
+
+  // 6. 셀장/일반 팀장 (is_team_leader=false, role=team_leader) → 같은 레벨끼리만
+  if (user.role === 'team_leader') {
+    // 작성자도 is_team_leader=false인 경우만 열람 가능 (셀장끼리)
+    return authorIsTeamLeader === false
+  }
+
+  // 7. 일반 멤버 → 자기 보고서만 (step 1에서 처리됨)
+  return false
+}

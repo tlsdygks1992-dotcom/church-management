@@ -7,8 +7,8 @@ import { createClient } from '@/lib/supabase/client'
 import { createApprovalNotification } from '@/lib/notifications'
 import { useToastContext } from '@/providers/ToastProvider'
 import { useAuth } from '@/providers/AuthProvider'
-import { canAccessAllDepartments } from '@/lib/permissions'
-import { useReportDetail, useReportPrograms, useReportNewcomers, useApprovalHistory } from '@/queries/reports'
+import { canAccessAllDepartments, canViewReport } from '@/lib/permissions'
+import { useReportDetail, useReportPrograms, useReportNewcomers, useApprovalHistory, useTeamLeaderIds } from '@/queries/reports'
 
 type ReportType = 'weekly' | 'meeting' | 'education'
 
@@ -49,6 +49,7 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
   const { data: programs = [], isLoading: programsLoading } = useReportPrograms(reportId)
   const { data: newcomers = [] } = useReportNewcomers(reportId)
   const { data: history = [] } = useApprovalHistory(reportId)
+  const { data: teamLeaderIds = [] } = useTeamLeaderIds(report?.department_id)
 
   // 권한 계산
   const userRole = currentUser?.role || ''
@@ -92,19 +93,17 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
     )
   }
 
-  // 부서 접근 제한: 비관리자는 소속 부서의 보고서만 열람 가능
-  if (!canAccessAllDepartments(userRole)) {
-    const userDeptIds = currentUser.user_departments?.map(ud => ud.department_id) || []
-    if (!userDeptIds.includes(report.department_id)) {
-      return (
-        <div className="max-w-4xl mx-auto p-4 md:p-6 text-center">
-          <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-8">
-            <h2 className="text-lg font-semibold text-yellow-800 mb-2">접근 권한 없음</h2>
-            <p className="text-sm text-yellow-600">소속 부서의 보고서만 열람할 수 있습니다.</p>
-          </div>
+  // 보고서 열람 권한 체크
+  const authorIsTeamLeader = teamLeaderIds.includes(report.author_id)
+  if (!canViewReport(currentUser, report, authorIsTeamLeader)) {
+    return (
+      <div className="max-w-4xl mx-auto p-4 md:p-6 text-center">
+        <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-8">
+          <h2 className="text-lg font-semibold text-yellow-800 mb-2">열람 권한 없음</h2>
+          <p className="text-sm text-yellow-600">이 보고서를 열람할 권한이 없습니다.</p>
         </div>
-      )
-    }
+      </div>
+    )
   }
 
   // 작성자이고 제출된 상태일 때만 취소 가능

@@ -6,12 +6,14 @@ import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/providers/AuthProvider'
 import { useDepartments } from '@/queries/departments'
-import { canAccessAllDepartments, canWriteReport as checkCanWriteReport, getAccessibleDepartmentIds } from '@/lib/permissions'
+import { canAccessAllDepartments, canWriteReport as checkCanWriteReport, getAccessibleDepartmentIds, canViewReport } from '@/lib/permissions'
 
 type ReportType = 'weekly' | 'meeting' | 'education'
 
 interface Report {
   id: string
+  author_id: string
+  department_id: string
   report_date: string
   status: string
   report_type: ReportType
@@ -48,6 +50,7 @@ export default function ReportListClient() {
   const [reports, setReports] = useState<Report[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedDept, setSelectedDept] = useState<string>('all')
+  const [teamLeaderMap, setTeamLeaderMap] = useState<Record<string, string[]>>({})
 
   const selectedType = (searchParams.get('type') as ReportType) || 'weekly'
 
@@ -71,6 +74,35 @@ export default function ReportListClient() {
     setReports((data || []) as Report[])
     setLoading(false)
   }, [supabase, isAdmin, userDepartmentIds])
+
+  // 부서별 팀장 ID 조회 (열람 권한 필터링용)
+  useEffect(() => {
+    if (!user || isAdmin || userDepartmentIds.length === 0) return
+    const fetchTeamLeaders = async () => {
+      const { data } = await supabase
+        .from('user_departments')
+        .select('department_id, user_id')
+        .in('department_id', userDepartmentIds)
+        .eq('is_team_leader', true)
+      const map: Record<string, string[]> = {}
+      for (const row of data || []) {
+        if (!map[row.department_id]) map[row.department_id] = []
+        map[row.department_id].push(row.user_id)
+      }
+      setTeamLeaderMap(map)
+    }
+    fetchTeamLeaders()
+  }, [user, isAdmin, userDepartmentIds, supabase])
+
+  // 열람 권한 필터링
+  const filteredReports = useMemo(() => {
+    if (isAdmin) return reports
+    return reports.filter(report => {
+      const deptTeamLeaderIds = teamLeaderMap[report.department_id] || []
+      const authorIsTeamLeader = deptTeamLeaderIds.includes(report.author_id)
+      return canViewReport(user, report, authorIsTeamLeader)
+    })
+  }, [reports, user, isAdmin, teamLeaderMap])
 
   // 초기 로드 (user 정보가 준비되면)
   useEffect(() => {
@@ -179,9 +211,9 @@ export default function ReportListClient() {
           <div className="py-12 flex items-center justify-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           </div>
-        ) : reports.length > 0 ? (
+        ) : filteredReports.length > 0 ? (
           <div className="divide-y divide-gray-100">
-            {reports.map((report) => (
+            {filteredReports.map((report) => (
               <Link
                 key={report.id}
                 href={`/reports/${report.id}`}
