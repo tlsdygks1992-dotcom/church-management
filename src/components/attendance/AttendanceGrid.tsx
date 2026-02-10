@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useMemo, useCallback, memo } from 'react'
+import { useState, useEffect, useTransition, useMemo, useCallback, memo } from 'react'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { exportAttendanceToExcel } from '@/lib/excel'
@@ -181,6 +181,18 @@ export default function AttendanceGrid({
       })
       setMemberCellMap(cellMap)
 
+      // 셀 정렬 순서 조회 (display_order 기준)
+      const { data: cellsData } = await supabase
+        .from('cells')
+        .select('id, display_order')
+        .eq('department_id', deptId)
+        .eq('is_active', true)
+
+      const cellOrderMap = new Map<string, number>()
+      ;(cellsData || []).forEach((c: { id: string; display_order: number }) => {
+        cellOrderMap.set(c.id, c.display_order)
+      })
+
       let newMembers: MemberBasic[] = []
       if (memberIds.length > 0) {
         const { data: newMembersData } = await supabase
@@ -191,6 +203,16 @@ export default function AttendanceGrid({
           .order('name')
 
         newMembers = (newMembersData || []) as MemberBasic[]
+
+        // 셀별(display_order) → 이름순 정렬, 셀 미배정은 맨 뒤
+        newMembers.sort((a, b) => {
+          const cellA = cellMap.get(a.id)
+          const cellB = cellMap.get(b.id)
+          const orderA = cellA ? (cellOrderMap.get(cellA) ?? 999) : 9999
+          const orderB = cellB ? (cellOrderMap.get(cellB) ?? 999) : 9999
+          if (orderA !== orderB) return orderA - orderB
+          return a.name.localeCompare(b.name)
+        })
       }
 
       setMembers(newMembers)
@@ -208,6 +230,11 @@ export default function AttendanceGrid({
       }
     })
   }, [supabase])
+
+  // 초기 마운트 시 셀 매핑 + 정렬 로드
+  useEffect(() => {
+    loadData(defaultDepartmentId, attendanceDate)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDeptChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
     const deptId = e.target.value

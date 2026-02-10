@@ -9,6 +9,8 @@ import Image from 'next/image'
 interface MemberDepartmentData {
   department_id: string
   is_primary: boolean
+  cell_id: string | null
+  cells: { id: string; name: string } | null
   departments: {
     id: string
     name: string
@@ -67,7 +69,7 @@ export default function MemberDetailPage() {
 
     const { data, error } = await supabase
       .from('members')
-      .select('id, name, phone, email, birth_date, occupation, guardian, photo_url, department_id, member_departments(department_id, is_primary, departments(id, name))')
+      .select('id, name, phone, email, birth_date, occupation, guardian, photo_url, department_id, member_departments(department_id, is_primary, cell_id, cells(id, name), departments(id, name))')
       .eq('id', params.id)
       .single()
 
@@ -242,6 +244,7 @@ export default function MemberDetailPage() {
                 }`}
               >
                 {md.departments?.name}
+                {md.cells?.name && ` · ${md.cells.name}`}
                 {md.is_primary && ' (주)'}
               </span>
             ))}
