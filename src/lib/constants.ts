@@ -10,6 +10,8 @@ export const REPORT_TYPE_LABELS: Record<string, string> = {
   weekly: '주차',
   meeting: '모임',
   education: '교육',
+  cell_leader: '셀장',
+  project: '프로젝트',
 }
 
 export const APPROVAL_STATUS_LABELS: Record<string, string> = {

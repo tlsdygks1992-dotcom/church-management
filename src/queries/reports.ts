@@ -1,6 +1,6 @@
 'use client'
 
-import { useQuery, keepPreviousData } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import type { ReportSummary } from '@/types/shared'
 import type { WeeklyReport, ReportProgram, Newcomer, ApprovalHistory } from '@/types/database'
@@ -322,5 +322,26 @@ export function useReportStats(selectedDept: string, startDate: string) {
     },
     staleTime: 2 * 60_000,
     placeholderData: keepPreviousData,
+  })
+}
+
+// ─── 보고서 타입 변경 mutation ──────────────────────
+
+/** 관리자 보고서 타입 변경 */
+export function useChangeReportType() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ reportId, newType }: { reportId: string; newType: string }) => {
+      const { error } = await supabase
+        .from('weekly_reports')
+        .update({ report_type: newType })
+        .eq('id', reportId)
+      if (error) throw error
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['reports'] })
+      queryClient.invalidateQueries({ queryKey: ['reports', 'detail', variables.reportId] })
+    },
   })
 }

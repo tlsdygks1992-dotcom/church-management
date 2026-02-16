@@ -8,7 +8,7 @@ import { createApprovalNotification } from '@/lib/notifications'
 import { useToastContext } from '@/providers/ToastProvider'
 import { useAuth } from '@/providers/AuthProvider'
 import { canAccessAllDepartments, canViewReport } from '@/lib/permissions'
-import { useReportDetail, useReportPrograms, useReportNewcomers, useApprovalHistory, useTeamLeaderIds, useProjectContentItems, useProjectScheduleItems, useProjectBudgetItems } from '@/queries/reports'
+import { useReportDetail, useReportPrograms, useReportNewcomers, useApprovalHistory, useTeamLeaderIds, useProjectContentItems, useProjectScheduleItems, useProjectBudgetItems, useChangeReportType } from '@/queries/reports'
 
 type ReportType = 'weekly' | 'meeting' | 'education' | 'cell_leader' | 'project'
 
@@ -55,6 +55,7 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
   const { data: projectContentItems = [] } = useProjectContentItems(reportId)
   const { data: projectScheduleItems = [] } = useProjectScheduleItems(reportId)
   const { data: projectBudgetItems = [] } = useProjectBudgetItems(reportId)
+  const changeReportType = useChangeReportType()
 
   // 권한 계산
   const userRole = currentUser?.role || ''
@@ -70,73 +71,10 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
   const [approvalAction, setApprovalAction] = useState<'approve' | 'reject'>('approve')
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
-
-  // 로딩 상태
-  if (reportLoading || programsLoading || !currentUser) {
-    return (
-      <div className="max-w-4xl mx-auto p-4 md:p-6">
-        <div className="animate-pulse space-y-4">
-          <div className="h-24 bg-gray-100 rounded-2xl" />
-          <div className="h-40 bg-gray-100 rounded-2xl" />
-          <div className="h-32 bg-gray-100 rounded-2xl" />
-        </div>
-      </div>
-    )
-  }
-
-  // 보고서 없음
-  if (!report) {
-    return (
-      <div className="max-w-4xl mx-auto p-4 md:p-6 text-center">
-        <div className="bg-gray-50 rounded-2xl p-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">보고서를 찾을 수 없습니다</h2>
-          <button onClick={() => router.push('/reports')} className="text-blue-600 text-sm hover:underline">
-            보고서 목록으로 돌아가기
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  // 보고서 열람 권한 체크
-  const authorIsTeamLeader = teamLeaderIds.includes(report.author_id)
-  if (!canViewReport(currentUser, report, authorIsTeamLeader)) {
-    return (
-      <div className="max-w-4xl mx-auto p-4 md:p-6 text-center">
-        <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-8">
-          <h2 className="text-lg font-semibold text-yellow-800 mb-2">열람 권한 없음</h2>
-          <p className="text-sm text-yellow-600">이 보고서를 열람할 권한이 없습니다.</p>
-        </div>
-      </div>
-    )
-  }
-
-  // 작성자이고 제출된 상태일 때만 취소 가능
-  const canCancelSubmission = currentUser?.id === report.author_id && report.status === 'submitted'
-
-  const reportType = (report as any).report_type || 'weekly'
-  const typeConfig = REPORT_TYPE_CONFIG[reportType as ReportType]
-
-  // 부서명 표시
-  const getDeptDisplayName = useCallback(() => {
-    const code = report.departments?.code
-    if (code === 'ck') return '유치부/아동부'
-    if (code === 'cu_worship') return 'CU워십'
-    if (code === 'youth') return '청소년부'
-    if (code === 'cu1') return '1청년'
-    if (code === 'cu2') return '2청년'
-    if (code === 'leader') return '리더'
-    return report.departments?.name || ''
-  }, [report.departments])
-
-  // 날짜 포맷
-  const formatDate = useCallback((dateStr: string) => {
-    const date = new Date(dateStr)
-    return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`
-  }, [])
-
   const [showPrintOptions, setShowPrintOptions] = useState(false)
   const [printerIP, setPrinterIP] = useState('')
+  const [showTypeChangeModal, setShowTypeChangeModal] = useState(false)
+  const [newReportType, setNewReportType] = useState<ReportType>('weekly')
 
   // 저장된 프린터 IP 불러오기
   useEffect(() => {
@@ -146,7 +84,33 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
     }
   }, [])
 
+  // 보고서 타입 (early return 전에 선언)
+  const reportType: ReportType = useMemo(
+    () => ((report as any)?.report_type || 'weekly') as ReportType,
+    [report]
+  )
+
+  // 부서명 표시
+  const getDeptDisplayName = useCallback(() => {
+    const code = report?.departments?.code
+    if (code === 'ck') return '유치부/아동부'
+    if (code === 'cu_worship') return 'CU워십'
+    if (code === 'youth') return '청소년부'
+    if (code === 'cu1') return '1청년'
+    if (code === 'cu2') return '2청년'
+    if (code === 'leader') return '리더'
+    return report?.departments?.name || ''
+  }, [report?.departments])
+
+  // 날짜 포맷
+  const formatDate = useCallback((dateStr: string) => {
+    const date = new Date(dateStr)
+    return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`
+  }, [])
+
+  // 인쇄 핸들러
   const handlePrint = useCallback((directIP?: string) => {
+    if (!report) return
     let parsedNotes: Record<string, any> = {}
     try {
       parsedNotes = report.notes ? JSON.parse(report.notes) : {}
@@ -160,7 +124,6 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
     let html = ''
 
     if (reportType === 'weekly') {
-      // 주차 보고서 인쇄 (기존 코드)
       const programRows = programs.length > 0
         ? programs.map(p => {
             const time = p.start_time ? p.start_time.slice(0, 5) : ''
@@ -215,7 +178,6 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
 
       html = generateWeeklyPrintHTML(getDeptDisplayName(), report, reportDate, programRows, attendanceRows, newcomerRows, parsedNotes)
     } else if (reportType === 'project') {
-      // 프로젝트 계획서 인쇄
       html = generateProjectPrintHTML(
         report.meeting_title || getDeptDisplayName(),
         report,
@@ -226,7 +188,6 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
         projectBudgetItems
       )
     } else {
-      // 모임/교육 보고서 인쇄
       const programRows = programs.length > 0
         ? programs.map(p => {
             const time = p.start_time ? p.start_time.slice(0, 5) : ''
@@ -278,6 +239,51 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
 
     setShowPrintOptions(false)
   }, [report, programs, newcomers, getDeptDisplayName, reportType, projectContentItems, projectScheduleItems, projectBudgetItems])
+
+  // 로딩 상태
+  if (reportLoading || programsLoading || !currentUser) {
+    return (
+      <div className="max-w-4xl mx-auto p-4 md:p-6">
+        <div className="animate-pulse space-y-4">
+          <div className="h-24 bg-gray-100 rounded-2xl" />
+          <div className="h-40 bg-gray-100 rounded-2xl" />
+          <div className="h-32 bg-gray-100 rounded-2xl" />
+        </div>
+      </div>
+    )
+  }
+
+  // 보고서 없음
+  if (!report) {
+    return (
+      <div className="max-w-4xl mx-auto p-4 md:p-6 text-center">
+        <div className="bg-gray-50 rounded-2xl p-8">
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">보고서를 찾을 수 없습니다</h2>
+          <button onClick={() => router.push('/reports')} className="text-blue-600 text-sm hover:underline">
+            보고서 목록으로 돌아가기
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // 보고서 열람 권한 체크
+  const authorIsTeamLeader = teamLeaderIds.includes(report.author_id)
+  if (!canViewReport(currentUser, report, authorIsTeamLeader)) {
+    return (
+      <div className="max-w-4xl mx-auto p-4 md:p-6 text-center">
+        <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-8">
+          <h2 className="text-lg font-semibold text-yellow-800 mb-2">열람 권한 없음</h2>
+          <p className="text-sm text-yellow-600">이 보고서를 열람할 권한이 없습니다.</p>
+        </div>
+      </div>
+    )
+  }
+
+  // 작성자이고 제출된 상태일 때만 취소 가능
+  const canCancelSubmission = currentUser?.id === report.author_id && report.status === 'submitted'
+
+  const typeConfig = REPORT_TYPE_CONFIG[reportType]
 
   // 제출 취소 처리
   const handleCancelSubmission = async () => {
@@ -348,6 +354,23 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
     } finally {
       setLoading(false)
     }
+  }
+
+  // 보고서 타입 변경 (관리자 전용)
+  const handleChangeType = () => {
+    if (!report) return
+    changeReportType.mutate(
+      { reportId: report.id, newType: newReportType },
+      {
+        onSuccess: () => {
+          setShowTypeChangeModal(false)
+          toast.success('보고서 타입이 변경되었습니다.')
+        },
+        onError: () => {
+          toast.error('타입 변경 중 오류가 발생했습니다.')
+        },
+      }
+    )
   }
 
   const handleApproval = async () => {
@@ -460,6 +483,21 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
           </div>
 
           <div className="flex items-center gap-1">
+            {/* 관리자 타입 변경 버튼 */}
+            {canDelete && (
+              <button
+                onClick={() => {
+                  setNewReportType(reportType)
+                  setShowTypeChangeModal(true)
+                }}
+                className="p-2.5 bg-purple-50 text-purple-600 rounded-xl hover:bg-purple-100 transition-colors"
+                title="타입 변경"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+              </button>
+            )}
             {/* 관리자 삭제 버튼 */}
             {canDelete && (
               <button
@@ -1146,6 +1184,48 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
                 className="flex-1 py-3 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
               >
                 {loading ? '삭제 중...' : '삭제'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 보고서 타입 변경 모달 */}
+      {showTypeChangeModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5 animate-slide-up">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">보고서 타입 변경</h3>
+            <div className="mb-4">
+              <p className="text-sm text-gray-500 mb-2">
+                현재: <span className="font-medium text-gray-900">{typeConfig.icon} {typeConfig.label}</span>
+              </p>
+              <select
+                value={newReportType}
+                onChange={(e) => setNewReportType(e.target.value as ReportType)}
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-base bg-white"
+              >
+                {(Object.entries(REPORT_TYPE_CONFIG) as [ReportType, { label: string; icon: string }][]).map(
+                  ([key, val]) => (
+                    <option key={key} value={key}>
+                      {val.icon} {val.label}
+                    </option>
+                  )
+                )}
+              </select>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowTypeChangeModal(false)}
+                className="flex-1 py-3 border border-gray-200 rounded-xl font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleChangeType}
+                disabled={changeReportType.isPending || newReportType === reportType}
+                className="flex-1 py-3 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 transition-colors disabled:opacity-50"
+              >
+                {changeReportType.isPending ? '변경 중...' : '변경'}
               </button>
             </div>
           </div>
