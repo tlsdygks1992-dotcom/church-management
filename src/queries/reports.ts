@@ -35,6 +35,7 @@ export interface ReportDetailData extends WeeklyReport {
   attendees: string | null
   main_content: string | null
   application_notes: string | null
+  cell_id: string | null
   departments: { name: string; code?: string } | null
   users: { name: string } | null
   coordinator: { name: string } | null

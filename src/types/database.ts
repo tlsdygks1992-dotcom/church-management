@@ -136,17 +136,19 @@ export interface Database {
           rejected_by: string | null
           rejected_at: string | null
           rejection_reason: string | null
+          cell_id: string | null
           created_at: string
           updated_at: string
         }
         Insert: Omit<Database['public']['Tables']['weekly_reports']['Row'],
-          'id' | 'created_at' | 'updated_at' | 'total_registered' | 'worship_attendance' | 'meeting_attendance' | 'status' | 'year'>
+          'id' | 'created_at' | 'updated_at' | 'total_registered' | 'worship_attendance' | 'meeting_attendance' | 'status' | 'year' | 'cell_id'>
           & {
             total_registered?: number
             worship_attendance?: number
             meeting_attendance?: number
             status?: ApprovalStatus
             year?: number
+            cell_id?: string | null
           }
         Update: Partial<Database['public']['Tables']['weekly_reports']['Insert']>
       }

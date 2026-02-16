@@ -96,6 +96,7 @@ export default function EditReportClient({ reportId }: EditReportClientProps) {
     attendees: (report as any).attendees,
     main_content: (report as any).main_content,
     application_notes: (report as any).application_notes,
+    cell_id: report.cell_id,
     programs: programs || [],
     newcomers: newcomers || [],
     projectContentItems: projectContentItems || [],

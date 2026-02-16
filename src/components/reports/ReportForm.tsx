@@ -11,6 +11,11 @@ import ProgramTable from './ProgramTable'
 import AttendanceInput from './AttendanceInput'
 import NewcomerSection from './NewcomerSection'
 import PhotoUploadSection from './PhotoUploadSection'
+import CellMemberAttendance from './CellMemberAttendance'
+import type { MemberAttendanceItem } from './CellMemberAttendance'
+import { useCells } from '@/queries/departments'
+import { useCellMembers, useCellAttendanceRecords } from '@/queries/attendance'
+import { useQueryClient } from '@tanstack/react-query'
 
 // 클라이언트 전용 컴포넌트로 동적 import
 const RichTextEditor = dynamic(() => import('@/components/ui/RichTextEditor'), {
@@ -42,6 +47,7 @@ interface ExistingReport {
   attendees: string | null
   main_content: string | null
   application_notes: string | null
+  cell_id?: string | null
   // 프로젝트 보고서 전용
   projectContentItems?: Array<{
     id: string
@@ -108,6 +114,7 @@ const REPORT_TYPE_LABELS: Record<ReportType, string> = {
 const SECTIONS = [
   { id: 'basic', label: '기본', icon: '📋' },
   { id: 'program', label: '순서', icon: '⏱️' },
+  { id: 'cell-attendance', label: '출석', icon: '✅' },
   { id: 'attendance', label: '출결', icon: '✅' },
   { id: 'newcomer', label: '새신자', icon: '👋' },
   // 프로젝트 전용 섹션
@@ -130,9 +137,14 @@ export default function ReportForm({
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
   const toast = useToastContext()
+  const queryClient = useQueryClient()
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // 셀장보고서: 셀 선택 및 셀원 출결 상태
+  const [selectedCellId, setSelectedCellId] = useState<string>(existingReport?.cell_id || '')
+  const [memberAttendance, setMemberAttendance] = useState<MemberAttendanceItem[]>([])
 
   // 섹션 네비게이션 상태
   const [activeSection, setActiveSection] = useState('basic')
@@ -200,6 +212,53 @@ export default function ReportForm({
     // 프로젝트 보고서 전용
     organization: parsedNotes.organization || '',
   })
+
+  // 셀 목록 조회 (셀장보고서일 때만)
+  const { data: cells = [] } = useCells(reportType === 'cell_leader' ? form.department_id : undefined)
+  const { data: cellMembers = [] } = useCellMembers(reportType === 'cell_leader' && selectedCellId ? selectedCellId : undefined)
+  const cellMemberIds = useMemo(() => cellMembers.map(m => m.id), [cellMembers])
+  const { data: existingCellRecords = [] } = useCellAttendanceRecords(
+    editMode && reportType === 'cell_leader' ? cellMemberIds : [],
+    editMode ? form.report_date : ''
+  )
+
+  // 셀원 목록이 변경되면 출결 상태 초기화
+  useEffect(() => {
+    if (reportType !== 'cell_leader' || cellMembers.length === 0) return
+
+    const attendanceMap = new Map(existingCellRecords.map(r => [r.member_id, r.is_present]))
+
+    setMemberAttendance(
+      cellMembers.map(m => ({
+        memberId: m.id,
+        name: m.name,
+        photoUrl: m.photo_url,
+        isPresent: editMode ? (attendanceMap.get(m.id) ?? false) : false,
+      }))
+    )
+  }, [cellMembers, existingCellRecords, editMode, reportType])
+
+  // 셀원 출석 토글
+  const handleToggleMemberAttendance = useCallback((memberId: string) => {
+    setMemberAttendance(prev =>
+      prev.map(m => m.memberId === memberId ? { ...m, isPresent: !m.isPresent } : m)
+    )
+  }, [])
+
+  // 전체 출석/초기화
+  const handleBulkAttendance = useCallback((allPresent: boolean) => {
+    setMemberAttendance(prev => prev.map(m => ({ ...m, isPresent: allPresent })))
+  }, [])
+
+  // 셀 변경 시 처리
+  const handleCellChange = useCallback((cellId: string) => {
+    setSelectedCellId(cellId)
+    setMemberAttendance([])
+    const cell = cells.find(c => c.id === cellId)
+    if (cell) {
+      setForm(prev => ({ ...prev, meeting_title: `${cell.name} 모임` }))
+    }
+  }, [cells])
 
   // 프로그램 초기화 (기존 데이터가 있으면 사용)
   const initialPrograms: Program[] = existingReport?.programs?.length
@@ -456,6 +515,14 @@ export default function ReportForm({
         ? (cellAttendance.reduce((sum, c) => sum + c.meeting, 0) || attendanceSummary.meeting)
         : 0
 
+      // 셀장보고서에서 셀 선택 시 출석자 명단 자동 생성
+      const cellLeaderAttendees = (reportType === 'cell_leader' && selectedCellId && memberAttendance.length > 0)
+        ? (() => {
+            const presentNames = memberAttendance.filter(m => m.isPresent).map(m => m.name)
+            return presentNames.length > 0 ? `${presentNames.join(', ')} (총 ${presentNames.length}명)` : ''
+          })()
+        : form.attendees
+
       const reportData = {
         report_type: reportType,
         department_id: form.department_id,
@@ -465,10 +532,11 @@ export default function ReportForm({
         total_registered: totalRegistered,
         worship_attendance: totalWorship,
         meeting_attendance: totalMeeting,
+        cell_id: reportType === 'cell_leader' ? (selectedCellId || null) : null,
         // 모임/교육/셀장/프로젝트 전용 필드
         meeting_title: reportType !== 'weekly' ? form.meeting_title : null,
         meeting_location: reportType !== 'weekly' && reportType !== 'cell_leader' && reportType !== 'project' ? form.meeting_location : null,
-        attendees: reportType !== 'weekly' && reportType !== 'project' ? form.attendees : null,
+        attendees: reportType !== 'weekly' && reportType !== 'project' ? cellLeaderAttendees : null,
         main_content: reportType !== 'weekly' ? form.main_content : null,
         application_notes: ['education', 'cell_leader', 'project'].includes(reportType) ? form.application_notes : null,
         notes: JSON.stringify({
@@ -594,6 +662,54 @@ export default function ReportForm({
         }
       }
 
+      // 셀장보고서: 셀원 출결 → attendance_records 연동
+      if (reportType === 'cell_leader' && selectedCellId && memberAttendance.length > 0) {
+        // 편집 모드: 기존 출결 레코드 삭제 (이 보고서에서 생성한 것만)
+        if (editMode && existingReport) {
+          await supabase
+            .from('attendance_records')
+            .delete()
+            .eq('report_id', reportId)
+        }
+
+        // 출석자만 upsert
+        const presentMembers = memberAttendance.filter(m => m.isPresent)
+        if (presentMembers.length > 0) {
+          const { error: attendanceError } = await supabase
+            .from('attendance_records')
+            .upsert(
+              presentMembers.map(m => ({
+                member_id: m.memberId,
+                report_id: reportId,
+                attendance_date: form.report_date,
+                attendance_type: 'meeting' as const,
+                is_present: true,
+                checked_by: authorId,
+                checked_via: 'cell_report',
+              })),
+              { onConflict: 'member_id,attendance_date,attendance_type' }
+            )
+          if (attendanceError) {
+            console.error('출결 저장 오류:', attendanceError)
+          }
+        }
+
+        // 결석자: 기존에 있던 출석 기록이 있으면 삭제
+        const absentMembers = memberAttendance.filter(m => !m.isPresent)
+        if (absentMembers.length > 0) {
+          await supabase
+            .from('attendance_records')
+            .delete()
+            .in('member_id', absentMembers.map(m => m.memberId))
+            .eq('attendance_date', form.report_date)
+            .eq('attendance_type', 'meeting')
+            .eq('checked_via', 'cell_report')
+        }
+
+        // 출결 캐시 무효화
+        queryClient.invalidateQueries({ queryKey: ['attendance'] })
+      }
+
       // 사진 업로드
       if (photoFiles.length > 0) {
         for (let i = 0; i < photoFiles.length; i++) {
@@ -649,18 +765,18 @@ export default function ReportForm({
   // 현재 보고서 유형에 맞는 섹션 필터링
   const visibleSections = useMemo(() => {
     if (reportType === 'weekly') {
-      return SECTIONS.filter(s => !['overview', 'plan', 'budget'].includes(s.id))
+      return SECTIONS.filter(s => !['cell-attendance', 'overview', 'plan', 'budget'].includes(s.id))
     }
     if (reportType === 'cell_leader') {
-      // 셀장 보고서: 순서/출결/새신자/프로젝트 섹션 제외
+      // 셀장 보고서: 순서/출결(weekly)/새신자/프로젝트 섹션 제외, cell-attendance 포함
       return SECTIONS.filter(s => !['program', 'attendance', 'newcomer', 'overview', 'plan', 'budget'].includes(s.id))
     }
     if (reportType === 'project') {
-      // 프로젝트: 순서/출결/새신자 제외, 개요/계획/예산 포함
-      return SECTIONS.filter(s => !['program', 'attendance', 'newcomer'].includes(s.id))
+      // 프로젝트: 순서/출결/새신자/셀출석 제외, 개요/계획/예산 포함
+      return SECTIONS.filter(s => !['program', 'cell-attendance', 'attendance', 'newcomer'].includes(s.id))
     }
-    // 모임/교육 보고서는 출결/새신자/프로젝트 섹션 제외
-    return SECTIONS.filter(s => !['attendance', 'newcomer', 'overview', 'plan', 'budget'].includes(s.id))
+    // 모임/교육 보고서는 출결/새신자/프로젝트/셀출석 섹션 제외
+    return SECTIONS.filter(s => !['cell-attendance', 'attendance', 'newcomer', 'overview', 'plan', 'budget'].includes(s.id))
   }, [reportType])
 
   // sectionRef 콜백 생성
@@ -723,7 +839,13 @@ export default function ReportForm({
             <label className="block text-sm font-medium text-gray-700 mb-1">부서</label>
             <select
               value={form.department_id}
-              onChange={(e) => setForm({ ...form, department_id: e.target.value })}
+              onChange={(e) => {
+                setForm({ ...form, department_id: e.target.value })
+                if (reportType === 'cell_leader') {
+                  setSelectedCellId('')
+                  setMemberAttendance([])
+                }
+              }}
               className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
             >
               {departments.map((dept) => (
@@ -746,6 +868,25 @@ export default function ReportForm({
             />
           </div>
 
+          {/* 셀장보고서: 셀 선택 드롭다운 */}
+          {reportType === 'cell_leader' && (
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">셀 선택</label>
+              <select
+                value={selectedCellId}
+                onChange={(e) => handleCellChange(e.target.value)}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
+              >
+                <option value="">셀을 선택하세요</option>
+                {cells.map((cell) => (
+                  <option key={cell.id} value={cell.id}>
+                    {cell.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {reportType !== 'weekly' && reportType !== 'project' && (
             <>
               {reportType !== 'cell_leader' && (
@@ -760,16 +901,19 @@ export default function ReportForm({
                 />
               </div>
               )}
-              <div className="sm:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">참석자</label>
-                <input
-                  type="text"
-                  value={form.attendees}
-                  onChange={(e) => setForm({ ...form, attendees: e.target.value })}
-                  placeholder="예: 전홍균, 강현숙, 신요한, 김유창 (총 4명)"
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                />
-              </div>
+              {/* 셀장보고서에서 셀이 선택된 경우 참석자 입력 숨김 (체크박스로 대체) */}
+              {!(reportType === 'cell_leader' && selectedCellId) && (
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">참석자</label>
+                  <input
+                    type="text"
+                    value={form.attendees}
+                    onChange={(e) => setForm({ ...form, attendees: e.target.value })}
+                    placeholder="예: 전홍균, 강현숙, 신요한, 김유창 (총 4명)"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  />
+                </div>
+              )}
             </>
           )}
         </div>
@@ -812,6 +956,16 @@ export default function ReportForm({
             </div>
           </div>
         </div>
+      )}
+
+      {/* 셀원 출석 체크 (셀장보고서 + 셀 선택됨) */}
+      {reportType === 'cell_leader' && selectedCellId && (
+        <CellMemberAttendance
+          memberAttendance={memberAttendance}
+          onToggle={handleToggleMemberAttendance}
+          onBulkAction={handleBulkAttendance}
+          sectionRef={setSectionRef('cell-attendance')}
+        />
       )}
 
       {/* 주요내용 (모임/교육/셀장 보고서 - 프로젝트 제외) */}

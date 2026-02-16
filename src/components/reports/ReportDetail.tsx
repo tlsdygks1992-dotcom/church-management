@@ -9,6 +9,7 @@ import { useToastContext } from '@/providers/ToastProvider'
 import { useAuth } from '@/providers/AuthProvider'
 import { canAccessAllDepartments, canViewReport } from '@/lib/permissions'
 import { useReportDetail, useReportPrograms, useReportNewcomers, useApprovalHistory, useTeamLeaderIds, useProjectContentItems, useProjectScheduleItems, useProjectBudgetItems, useChangeReportType } from '@/queries/reports'
+import { useCellMembers, useCellAttendanceRecords } from '@/queries/attendance'
 
 type ReportType = 'weekly' | 'meeting' | 'education' | 'cell_leader' | 'project'
 
@@ -57,6 +58,23 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
   const { data: projectBudgetItems = [] } = useProjectBudgetItems(reportId)
   const changeReportType = useChangeReportType()
 
+  // 보고서 타입 (훅 호출 전에 선언)
+  const reportType: ReportType = useMemo(
+    () => ((report as any)?.report_type || 'weekly') as ReportType,
+    [report]
+  )
+
+  // 셀장보고서: 셀원 출결 데이터
+  const cellId = report?.cell_id as string | undefined
+  const { data: cellMembers = [] } = useCellMembers(
+    reportType === 'cell_leader' ? cellId : undefined
+  )
+  const cellMemberIds = useMemo(() => cellMembers.map(m => m.id), [cellMembers])
+  const { data: cellAttendanceRecords = [] } = useCellAttendanceRecords(
+    reportType === 'cell_leader' && cellMemberIds.length > 0 ? cellMemberIds : [],
+    report?.report_date || ''
+  )
+
   // 권한 계산
   const userRole = currentUser?.role || ''
   const canApprove = useMemo(
@@ -83,12 +101,6 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
       setPrinterIP(savedIP)
     }
   }, [])
-
-  // 보고서 타입 (early return 전에 선언)
-  const reportType: ReportType = useMemo(
-    () => ((report as any)?.report_type || 'weekly') as ReportType,
-    [report]
-  )
 
   // 부서명 표시
   const getDeptDisplayName = useCallback(() => {
@@ -206,7 +218,9 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
         report,
         reportDate,
         programRows,
-        parsedNotes
+        parsedNotes,
+        cellMembers,
+        cellAttendanceRecords
       )
     }
 
@@ -238,7 +252,7 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
     }
 
     setShowPrintOptions(false)
-  }, [report, programs, newcomers, getDeptDisplayName, reportType, projectContentItems, projectScheduleItems, projectBudgetItems])
+  }, [report, programs, newcomers, getDeptDisplayName, reportType, projectContentItems, projectScheduleItems, projectBudgetItems, cellMembers, cellAttendanceRecords])
 
   // 로딩 상태
   if (reportLoading || programsLoading || !currentUser) {
@@ -580,10 +594,56 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
                 <p className="text-sm font-medium text-gray-900">{report.meeting_location || '-'}</p>
               </div>
             )}
-            <div className="col-span-2 p-3 bg-gray-50 rounded-xl">
-              <p className="text-xs text-gray-500 mb-1">참석자</p>
-              <p className="text-sm font-medium text-gray-900">{report.attendees || '-'}</p>
-            </div>
+            {/* 참석자 (셀원 출석 데이터가 없는 경우 텍스트 표시) */}
+            {!(reportType === 'cell_leader' && cellId && cellMembers.length > 0) && (
+              <div className="col-span-2 p-3 bg-gray-50 rounded-xl">
+                <p className="text-xs text-gray-500 mb-1">참석자</p>
+                <p className="text-sm font-medium text-gray-900">{report.attendees || '-'}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 셀원 출석 현황 (셀장보고서 + cell_id 있을 때) */}
+      {reportType === 'cell_leader' && cellId && cellMembers.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 lg:p-6">
+          <h2 className="font-semibold text-gray-900 mb-3 text-sm lg:text-base">
+            셀원 출석{' '}
+            <span className="text-sm font-normal text-gray-500">
+              ({cellAttendanceRecords.filter(r => r.is_present).length}/{cellMembers.length}명)
+            </span>
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {cellMembers.map(member => {
+              const isPresent = cellAttendanceRecords.some(r => r.member_id === member.id && r.is_present)
+              return (
+                <div
+                  key={member.id}
+                  className={`flex items-center gap-2 p-2.5 rounded-xl ${
+                    isPresent ? 'bg-green-50' : 'bg-gray-50'
+                  }`}
+                >
+                  {member.photo_url ? (
+                    <img src={member.photo_url} alt={member.name} className="w-6 h-6 rounded-full object-cover" />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs text-gray-500">
+                      {member.name.charAt(0)}
+                    </div>
+                  )}
+                  <span className="text-sm font-medium text-gray-900 flex-1">{member.name}</span>
+                  {isPresent ? (
+                    <svg className="w-4 h-4 text-green-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
       )}
@@ -1450,7 +1510,9 @@ function generateMeetingPrintHTML(
   report: any,
   reportDate: Date,
   programRows: string,
-  parsedNotes: any
+  parsedNotes: any,
+  cellMembers: { id: string; name: string; photo_url: string | null }[] = [],
+  cellAttendanceRecords: { member_id: string; is_present: boolean }[] = []
 ) {
   const isEducation = reportType === 'education'
   const isCellLeader = reportType === 'cell_leader'
@@ -1459,6 +1521,25 @@ function generateMeetingPrintHTML(
   const leftContent = isCellLeader || isEducation
     ? (report.application_notes || '')
     : (parsedNotes.discussion_notes || '')
+
+  // 셀원 출석 테이블 (셀장보고서 + 셀원 데이터 있을 때)
+  const hasCellAttendance = isCellLeader && cellMembers.length > 0
+  const cellAttendanceTable = hasCellAttendance
+    ? `<table style="width:100%;margin-bottom:12px;">
+        <tr><td class="section-header" colspan="2">셀원 출석 (${cellAttendanceRecords.filter(r => r.is_present).length}/${cellMembers.length}명)</td></tr>
+        <tr style="background:#f5f5f5;">
+          <td class="cell" style="font-weight:bold;">이름</td>
+          <td class="cell" style="width:80px;font-weight:bold;">출석</td>
+        </tr>
+        ${cellMembers.map(m => {
+          const isPresent = cellAttendanceRecords.some(r => r.member_id === m.id && r.is_present)
+          return `<tr>
+            <td class="cell" style="text-align:left;">${m.name}</td>
+            <td class="cell">${isPresent ? 'O' : 'X'}</td>
+          </tr>`
+        }).join('')}
+      </table>`
+    : ''
 
   return `<!DOCTYPE html>
 <html>
@@ -1536,11 +1617,12 @@ function generateMeetingPrintHTML(
     <td class="cell" style="width:60px;background:#f5f5f5;font-weight:bold;">장소</td>
     <td class="cell">${report.meeting_location || ''}</td>
   </tr>`}
-  <tr>
+  ${hasCellAttendance ? '' : `<tr>
     <td class="cell" style="background:#f5f5f5;font-weight:bold;">참 석 자</td>
     <td class="cell" colspan="3" style="text-align:left;">${report.attendees || ''}</td>
-  </tr>
+  </tr>`}
 </table>
+${cellAttendanceTable}
 ${!isCellLeader ? `<table style="width:100%;margin-bottom:12px;">
   <tr><td class="section-header" colspan="4">진행순서</td></tr>
   <tr style="background:#f5f5f5;">

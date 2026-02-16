@@ -80,6 +80,53 @@ export function useAttendanceRecordsBrief(date: string) {
   })
 }
 
+/** 셀별 교인 목록 (셀장보고서 출석 체크용) */
+export function useCellMembers(cellId: string | undefined) {
+  return useQuery({
+    queryKey: ['attendance', 'cellMembers', cellId],
+    queryFn: async (): Promise<MemberBasic[]> => {
+      // cell_id로 member_departments 조회
+      const { data: memberDeptData } = await supabase
+        .from('member_departments')
+        .select('member_id')
+        .eq('cell_id', cellId!)
+
+      const memberIds = [...new Set((memberDeptData || []).map((md: { member_id: string }) => md.member_id))]
+      if (memberIds.length === 0) return []
+
+      const { data, error } = await supabase
+        .from('members')
+        .select('id, name, photo_url')
+        .in('id', memberIds)
+        .eq('is_active', true)
+        .order('name')
+      if (error) throw error
+      return (data || []) as MemberBasic[]
+    },
+    enabled: !!cellId,
+    staleTime: 5 * 60_000,
+  })
+}
+
+/** 셀원 출결 기록 조회 (특정 날짜, meeting 타입) */
+export function useCellAttendanceRecords(memberIds: string[], date: string) {
+  return useQuery({
+    queryKey: ['attendance', 'cellRecords', memberIds, date],
+    queryFn: async (): Promise<{ member_id: string; is_present: boolean }[]> => {
+      const { data, error } = await supabase
+        .from('attendance_records')
+        .select('member_id, is_present')
+        .in('member_id', memberIds)
+        .eq('attendance_date', date)
+        .eq('attendance_type', 'meeting')
+      if (error) throw error
+      return (data || []) as { member_id: string; is_present: boolean }[]
+    },
+    enabled: memberIds.length > 0 && !!date,
+    staleTime: 30_000,
+  })
+}
+
 /** 출결 체크 mutation */
 export function useToggleAttendance() {
   const queryClient = useQueryClient()
