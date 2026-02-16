@@ -256,7 +256,7 @@ export default function ReportForm({
     setMemberAttendance([])
     const cell = cells.find(c => c.id === cellId)
     if (cell) {
-      setForm(prev => ({ ...prev, meeting_title: `${cell.name} 모임` }))
+      setForm(prev => ({ ...prev, meeting_title: `${cell.name} 모임 보고서` }))
     }
   }, [cells])
 
@@ -827,7 +827,7 @@ export default function ReportForm({
               type="text"
               value={form.meeting_title}
               onChange={(e) => setForm({ ...form, meeting_title: e.target.value })}
-              placeholder={reportType === 'cell_leader' ? '예: 1셀 모임' : reportType === 'project' ? '예: 2024 교육부 프로젝트' : reportType === 'meeting' ? '예: 청년1 셀장모임' : '예: 리더 교육'}
+              placeholder={reportType === 'cell_leader' ? '예: 현진셀 모임 보고서' : reportType === 'project' ? '예: 2024 교육부 프로젝트' : reportType === 'meeting' ? '예: 청년1 셀장모임' : '예: 리더 교육'}
               className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
             />
           </div>
