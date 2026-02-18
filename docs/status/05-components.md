@@ -78,6 +78,7 @@ src/components/
 관리 메뉴 (관리자만)
 ├── 결재함 (/approvals)
 ├── 출석 통계 (/stats)
+├── 셀 관리 (/settings/cells)
 └── 사용자 관리 (/users)
 ```
 
@@ -99,9 +100,10 @@ src/components/
 
 | Prop | 타입 | 설명 |
 |------|------|------|
-| reportType | ReportType | 보고서 유형 (weekly/meeting/education) |
+| reportType | ReportType | 보고서 유형 (weekly/meeting/education/cell_leader) |
 | editMode | boolean | 수정 모드 여부 |
 | existingReportId | string | 기존 보고서 ID (수정 시) |
+| newcomerData | object | 새신자 자동 채움 데이터 (전환 시) |
 
 #### 기능
 
@@ -135,18 +137,18 @@ src/components/
 
 | Prop | 타입 | 설명 |
 |------|------|------|
-| report | WeeklyReport | 보고서 데이터 |
-| programs | ReportProgram[] | 순서지 데이터 |
-| approvalHistory | ApprovalHistory[] | 결재 이력 |
-| user | User | 현재 사용자 |
+| reportId | string | 보고서 ID (useAuth + TanStack Query로 데이터 로드) |
 
 #### 기능
 
-- 보고서 상세 조회
+- 보고서 상세 조회 (useReportDetail, useReportPrograms, useReportNewcomers, useApprovalHistory)
+- `canViewReport()` 기반 열람 권한 체크
 - 결재 흐름 타임라인 표시
 - 역할별 결재 액션 (협조/결재/확인/반려)
-- 인쇄 기능 (프린터 IP 설정)
-- 보고서 수정 버튼 (작성자 + draft)
+- 반려 사유 표시 + 수정 후 재제출
+- 인쇄 기능 (프린터 IP 설정, 셀장 보고서 전용 레이아웃)
+- 새신자 → 교인 전환 버튼 (전환 완료 배지)
+- 보고서 수정 버튼 (작성자 + draft/rejected)
 - 보고서 삭제 기능 (관리자만, 확인 모달)
 
 #### 결재 액션 버튼

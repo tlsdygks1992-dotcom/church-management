@@ -2,7 +2,6 @@
 
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
-import Underline from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
 import Placeholder from '@tiptap/extension-placeholder'
 import { TextStyle } from '@tiptap/extension-text-style'
@@ -89,7 +88,6 @@ export default function RichTextEditor({
           levels: [2, 3],
         },
       }),
-      Underline,
       TextStyle,
       FontSize,
       TextAlign.configure({

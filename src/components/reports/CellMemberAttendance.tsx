@@ -29,30 +29,32 @@ const MemberRow = memo(function MemberRow({
   }, [member.memberId, onToggle])
 
   return (
-    <div className="flex items-center justify-between py-2.5 px-3 rounded-lg hover:bg-gray-50 transition-colors">
+    <button
+      type="button"
+      onClick={handleClick}
+      className="w-full flex items-center justify-between py-3 px-3 rounded-lg active:bg-gray-100 transition-colors text-left"
+    >
       <div className="flex items-center gap-3">
         {/* 프로필 사진 */}
         {member.photoUrl ? (
           <img
             src={member.photoUrl}
             alt={member.name}
-            className="w-7 h-7 rounded-full object-cover"
+            className="w-8 h-8 rounded-full object-cover"
           />
         ) : (
-          <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-xs text-gray-500 font-medium">
+          <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs text-gray-500 font-medium">
             {member.name.charAt(0)}
           </div>
         )}
         <span className="text-sm font-medium text-gray-900">{member.name}</span>
       </div>
-      {/* 출석 토글 버튼 */}
-      <button
-        type="button"
-        onClick={handleClick}
-        className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
+      {/* 출석 토글 */}
+      <div
+        className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all ${
           member.isPresent
-            ? 'bg-green-100 text-green-600 hover:bg-green-200'
-            : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+            ? 'bg-green-100 border-green-500 text-green-600'
+            : 'bg-red-50 border-red-300 text-red-400'
         }`}
       >
         {member.isPresent ? (
@@ -60,12 +62,12 @@ const MemberRow = memo(function MemberRow({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
           </svg>
         ) : (
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
         )}
-      </button>
-    </div>
+      </div>
+    </button>
   )
 })
 
@@ -96,14 +98,14 @@ export default function CellMemberAttendance({
           <button
             type="button"
             onClick={() => onBulkAction(true)}
-            className="px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
+            className="px-4 py-2 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg active:bg-green-200 transition-colors"
           >
             전체 출석
           </button>
           <button
             type="button"
             onClick={() => onBulkAction(false)}
-            className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+            className="px-4 py-2 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg active:bg-gray-200 transition-colors"
           >
             초기화
           </button>

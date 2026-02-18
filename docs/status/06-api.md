@@ -153,19 +153,19 @@ export async function updateSession(request: NextRequest) {
 
 **경로**: `src/queries/`
 
-| 파일 | 주요 훅 | 용도 |
-|------|---------|------|
-| `departments.ts` | `useDepartments`, `useCells` | 부서/셀 목록 조회 (staleTime 10분) |
-| `members.ts` | `useMembers`, `useDeleteMember` | 교인 CRUD |
-| `reports.ts` | `useReports` | 보고서 조회 |
-| `notifications.ts` | `useNotifications` | 알림 조회/읽음 |
-| `accounting.ts` | `useAccountingRecordsByMonth` | 회계 기록 조회 (staleTime 60초) |
-| `attendance.ts` | `useAttendanceRecords`, `useToggleAttendance` | 출결 기록 조회/수정 |
-| `dashboard.ts` | `useRecentReports`, `useThisWeekReport`, `useDashboardPending`, `useThisWeekStats` | 대시보드 데이터 |
-| `users.ts` | `useAllUsers` | 전체 사용자 목록 (관리자용) |
-| `approvals.ts` | `usePendingReports`, `useCompletedReports` | 결재 대기/완료 보고서 |
-| `photos.ts` | `usePhotos` | 사진 목록 조회 |
-| `stats.ts` | `useDepartmentStats`, `useWeeklyTrend` | 통계 데이터 |
+| 파일 | 주요 훅 | 용도 | staleTime |
+|------|---------|------|-----------|
+| `departments.ts` | `useDepartments`, `useCells`, `useAllCells`, `useCreateCell`, `useUpdateCell`, `useReorderCells` | 부서/셀 CRUD | 10분 |
+| `members.ts` | `useMembers`, `useDeleteMember` | 교인 CRUD | 5분 |
+| `reports.ts` | `useReports`, `useReportDetail`, `useReportPrograms`, `useReportNewcomers`, `useApprovalHistory`, `useTeamLeaderIds`, `useTeamLeaderMap`, `useReportStats` | 보고서 조회/권한/통계 | 2분(목록), 30초(상세) |
+| `notifications.ts` | `useNotifications` | 알림 조회/읽음 | - |
+| `accounting.ts` | `useAccountingRecordsByMonth`, `usePreviousBalance`, `useExpenseRequests`, `useDeleteExpenseRequest` | 회계 기록/지출결의서 CRUD | 1~2분 |
+| `attendance.ts` | `useAttendanceRecords`, `useAttendanceMembers`, `useAttendanceRecordsBrief`, `useToggleAttendance` | 출결 기록 조회/수정 | 30초 |
+| `dashboard.ts` | `useRecentReports`, `useThisWeekReport`, `useDashboardPending`, `useThisWeekStats` | 대시보드 데이터 | 30~60초 |
+| `users.ts` | `useAllUsers` | 전체 사용자 목록 (관리자용) | 30초 |
+| `approvals.ts` | `usePendingReports`, `useCompletedReports` | 결재 대기/완료 보고서 | - |
+| `photos.ts` | `usePhotos` | 사진 목록 조회 | - |
+| `stats.ts` | `useDepartmentStats`, `useWeeklyTrend` | 통계 데이터 | - |
 
 ---
 
@@ -190,6 +190,7 @@ export async function updateSession(request: NextRequest) {
 | `canAccessAllDepartments(role)` | 모든 부서 접근 가능 여부 |
 | `canAccessAccounting(role)` | 회계 기능 접근 가능 여부 |
 | `canEditMembers(role)` | 교인 관리 권한 여부 |
+| `canViewReport(params)` | 보고서 열람 권한 (작성자/관리자/팀장/셀장/멤버 7단계) |
 
 ### 공통 상수
 **경로**: `src/lib/constants.ts`
@@ -506,6 +507,7 @@ export type ReportType =
   | 'weekly'
   | 'meeting'
   | 'education'
+  | 'cell_leader'
 
 // 결재 상태
 export type ApprovalStatus =

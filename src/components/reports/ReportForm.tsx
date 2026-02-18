@@ -217,10 +217,11 @@ export default function ReportForm({
   const { data: cells = [] } = useCells(reportType === 'cell_leader' ? form.department_id : undefined)
   const { data: cellMembers = [] } = useCellMembers(reportType === 'cell_leader' && selectedCellId ? selectedCellId : undefined)
   const cellMemberIds = useMemo(() => cellMembers.map(m => m.id), [cellMembers])
-  const { data: existingCellRecords = [] } = useCellAttendanceRecords(
+  const { data: cellRecordsData } = useCellAttendanceRecords(
     editMode && reportType === 'cell_leader' ? cellMemberIds : [],
     editMode ? form.report_date : ''
   )
+  const existingCellRecords = useMemo(() => cellRecordsData ?? [], [cellRecordsData])
 
   // 셀원 목록이 변경되면 출결 상태 초기화
   useEffect(() => {
@@ -228,14 +229,19 @@ export default function ReportForm({
 
     const attendanceMap = new Map(existingCellRecords.map(r => [r.member_id, r.is_present]))
 
-    setMemberAttendance(
-      cellMembers.map(m => ({
+    setMemberAttendance(prev => {
+      // 이미 같은 셀원 목록이면 기존 상태 유지 (토글 리셋 방지)
+      if (prev.length === cellMembers.length &&
+          prev.every((m, i) => m.memberId === cellMembers[i]?.id)) {
+        return prev
+      }
+      return cellMembers.map(m => ({
         memberId: m.id,
         name: m.name,
         photoUrl: m.photo_url,
         isPresent: editMode ? (attendanceMap.get(m.id) ?? false) : false,
       }))
-    )
+    })
   }, [cellMembers, existingCellRecords, editMode, reportType])
 
   // 셀원 출석 토글
