@@ -472,6 +472,20 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
   ]
   const hasProjSection = (id: string) => reportType !== 'project' || projectSections.includes(id)
 
+  // 동적 번호 매기기
+  const projNumMap: Record<string, number> = {}
+  if (reportType === 'project') {
+    let n = 1
+    for (const id of ['overview', 'purpose', 'organization', 'content', 'schedule', 'budget']) {
+      if (!projectSections.includes(id)) continue
+      if (id === 'schedule' && projNumMap['content']) continue
+      projNumMap[id] = n
+      if (id === 'content') projNumMap['schedule'] = n
+      n++
+    }
+  }
+  const projNum = (id: string) => projNumMap[id] || ''
+
   return (
     <div className="space-y-4 lg:space-y-6 max-w-4xl mx-auto">
       {/* 헤더 */}
@@ -659,7 +673,7 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
         <div className="space-y-4">
           {hasProjSection('overview') && report.main_content && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 lg:p-6">
-              <h2 className="font-semibold text-gray-900 mb-3 text-sm lg:text-base">1. 개요</h2>
+              <h2 className="font-semibold text-gray-900 mb-3 text-sm lg:text-base">{projNum('overview')}. 개요</h2>
               <div className="bg-gray-50 p-4 rounded-xl">
                 <div className="text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: report.main_content }} />
               </div>
@@ -667,7 +681,7 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
           )}
           {hasProjSection('purpose') && report.application_notes && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 lg:p-6">
-              <h2 className="font-semibold text-gray-900 mb-3 text-sm lg:text-base">2. 목적</h2>
+              <h2 className="font-semibold text-gray-900 mb-3 text-sm lg:text-base">{projNum('purpose')}. 목적</h2>
               <div className="bg-gray-50 p-4 rounded-xl">
                 <div className="text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: report.application_notes }} />
               </div>
@@ -675,7 +689,7 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
           )}
           {hasProjSection('organization') && parsedNotes.organization && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 lg:p-6">
-              <h2 className="font-semibold text-gray-900 mb-3 text-sm lg:text-base">3. 조직도</h2>
+              <h2 className="font-semibold text-gray-900 mb-3 text-sm lg:text-base">{projNum('organization')}. 조직도</h2>
               <div className="bg-gray-50 p-4 rounded-xl">
                 <div className="text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: parsedNotes.organization }} />
               </div>
@@ -690,7 +704,7 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
         (hasProjSection('schedule') && projectScheduleItems.length > 0)
       ) && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 lg:p-6 space-y-5">
-          <h2 className="font-semibold text-gray-900 text-sm lg:text-base">세부 계획</h2>
+          <h2 className="font-semibold text-gray-900 text-sm lg:text-base">{projNum('content') || projNum('schedule')}. 세부 계획</h2>
           {hasProjSection('content') && projectContentItems.length > 0 && (
             <div>
               <p className="text-xs font-medium text-gray-500 mb-2">내용</p>
@@ -750,7 +764,7 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
       {reportType === 'project' && hasProjSection('budget') && projectBudgetItems.length > 0 && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 lg:p-6">
           <h2 className="font-semibold text-gray-900 mb-3 text-sm lg:text-base">
-            5. 예산 <span className="text-xs font-normal text-gray-400">(단위: 원)</span>
+            {projNum('budget')}. 예산 <span className="text-xs font-normal text-gray-400">(단위: 원)</span>
           </h2>
           <div className="overflow-x-auto">
             <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
@@ -1693,6 +1707,18 @@ function generateProjectPrintHTML(
   ]
   const has = (id: string) => sections.includes(id)
 
+  // 동적 번호
+  const numMap: Record<string, number> = {}
+  let num = 1
+  for (const id of ['overview', 'purpose', 'organization', 'content', 'schedule', 'budget']) {
+    if (!sections.includes(id)) continue
+    if (id === 'schedule' && numMap['content']) continue
+    numMap[id] = num
+    if (id === 'content') numMap['schedule'] = num
+    num++
+  }
+  const sn = (id: string) => numMap[id] || ''
+
   // 세부계획 내용
   const contentRows = contentItems.length > 0
     ? contentItems.map(c => `<tr>
@@ -1841,16 +1867,16 @@ function generateProjectPrintHTML(
   ${reportDate.getFullYear()} ${report.departments?.name || '교육부'}
 </div>
 
-${has('overview') ? `<div class="section-title"><span class="section-num">1</span> 개요</div>
+${has('overview') ? `<div class="section-title"><span class="section-num">${sn('overview')}</span> 개요</div>
 <div class="content-block">${report.main_content ? stripHtml(report.main_content) : ''}</div>` : ''}
 
-${has('purpose') ? `<div class="section-title"><span class="section-num">2</span> 목적</div>
+${has('purpose') ? `<div class="section-title"><span class="section-num">${sn('purpose')}</span> 목적</div>
 <div class="content-block">${report.application_notes ? stripHtml(report.application_notes) : ''}</div>` : ''}
 
-${has('organization') ? `<div class="section-title"><span class="section-num">3</span> 조직도</div>
+${has('organization') ? `<div class="section-title"><span class="section-num">${sn('organization')}</span> 조직도</div>
 <div class="content-block">${parsedNotes.organization ? stripHtml(parsedNotes.organization) : ''}</div>` : ''}
 
-${has('content') || has('schedule') ? `<div class="section-title"><span class="section-num">4</span> 세부 계획</div>` : ''}
+${has('content') || has('schedule') ? `<div class="section-title"><span class="section-num">${sn('content') || sn('schedule')}</span> 세부 계획</div>` : ''}
 ${has('content') ? `<div style="margin-bottom:4px;font-size:9pt;">○ 내용</div>
 <table style="width:100%;margin-bottom:12px;">
   <tr style="background:#6b7b8d;">
@@ -1872,7 +1898,7 @@ ${has('schedule') ? `<div style="margin-bottom:4px;font-size:9pt;">○ 세부 �
   ${scheduleRows}
 </table>` : ''}
 
-${has('budget') ? `<div class="section-title"><span class="section-num">5</span> 예산</div>
+${has('budget') ? `<div class="section-title"><span class="section-num">${sn('budget')}</span> 예산</div>
 <div style="text-align:right;margin-bottom:4px;font-size:9pt;">(단위: 원)</div>
 <table style="width:100%;">
   <tr style="background:#6b7b8d;">

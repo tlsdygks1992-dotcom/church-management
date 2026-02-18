@@ -221,6 +221,22 @@ export default function ReportForm({
     )
   }, [])
 
+  // 프로젝트 섹션 동적 번호 (활성화된 것만 순서대로)
+  const sectionOrder: ProjectSectionId[] = ['overview', 'purpose', 'organization', 'content', 'schedule', 'budget']
+  const projNum = useMemo(() => {
+    const map: Partial<Record<ProjectSectionId, number>> = {}
+    // content/schedule는 하나의 번호를 공유
+    let n = 1
+    for (const id of sectionOrder) {
+      if (!enabledSections.includes(id)) continue
+      if (id === 'schedule' && map['content']) continue // content와 같은 번호
+      map[id] = n
+      if (id === 'content') map['schedule'] = n // schedule도 같은 번호
+      n++
+    }
+    return map
+  }, [enabledSections])
+
   // 공통 필드
   const [form, setForm] = useState({
     department_id: existingReport?.department_id || departments[0]?.id || '',
@@ -1067,7 +1083,7 @@ export default function ReportForm({
         >
           {isSectionEnabled('overview') && (
             <div>
-              <label className="block font-semibold text-gray-900 mb-2 text-sm md:text-base">1. 개요</label>
+              <label className="block font-semibold text-gray-900 mb-2 text-sm md:text-base">{projNum.overview}. 개요</label>
               <RichTextEditor
                 value={form.main_content}
                 onChange={(value) => setForm({ ...form, main_content: value })}
@@ -1078,7 +1094,7 @@ export default function ReportForm({
           )}
           {isSectionEnabled('purpose') && (
             <div>
-              <label className="block font-semibold text-gray-900 mb-2 text-sm md:text-base">2. 목적</label>
+              <label className="block font-semibold text-gray-900 mb-2 text-sm md:text-base">{projNum.purpose}. 목적</label>
               <RichTextEditor
                 value={form.application_notes}
                 onChange={(value) => setForm({ ...form, application_notes: value })}
@@ -1089,7 +1105,7 @@ export default function ReportForm({
           )}
           {isSectionEnabled('organization') && (
             <div>
-              <label className="block font-semibold text-gray-900 mb-2 text-sm md:text-base">3. 조직도</label>
+              <label className="block font-semibold text-gray-900 mb-2 text-sm md:text-base">{projNum.organization}. 조직도</label>
               <RichTextEditor
                 value={form.organization}
                 onChange={(value) => setForm({ ...form, organization: value })}
@@ -1108,7 +1124,7 @@ export default function ReportForm({
           data-section="plan"
           className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 md:p-6 space-y-6 scroll-mt-24"
         >
-          <h2 className="font-semibold text-gray-900 text-base md:text-lg border-b pb-2">세부 계획</h2>
+          <h2 className="font-semibold text-gray-900 text-base md:text-lg border-b pb-2">{projNum.content || projNum.schedule}. 세부 계획</h2>
 
           {/* 내용 테이블 (4열) */}
           {isSectionEnabled('content') && <div>
@@ -1202,7 +1218,7 @@ export default function ReportForm({
           className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 md:p-6 scroll-mt-24"
         >
           <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold text-gray-900 text-base md:text-lg">5. 예산 <span className="text-xs font-normal text-gray-400">(단위: 원)</span></h2>
+            <h2 className="font-semibold text-gray-900 text-base md:text-lg">{projNum.budget}. 예산 <span className="text-xs font-normal text-gray-400">(단위: 원)</span></h2>
             <button
               type="button"
               onClick={addBudgetItem}
