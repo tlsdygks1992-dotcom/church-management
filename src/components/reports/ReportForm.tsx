@@ -125,6 +125,23 @@ const SECTIONS = [
   { id: 'notes', label: '논의', icon: '💬' },
 ]
 
+// 프로젝트 기획서: 선택 가능한 항목
+const PROJECT_OPTIONAL_SECTIONS = [
+  { id: 'overview', label: '개요' },
+  { id: 'purpose', label: '목적' },
+  { id: 'organization', label: '조직도' },
+  { id: 'content', label: '세부계획 (내용)' },
+  { id: 'schedule', label: '세부계획 (일정표)' },
+  { id: 'budget', label: '예산' },
+  { id: 'discussion', label: '논의사항' },
+  { id: 'other', label: '기타사항' },
+] as const
+
+type ProjectSectionId = typeof PROJECT_OPTIONAL_SECTIONS[number]['id']
+
+// 기본값: 모두 활성
+const ALL_PROJECT_SECTIONS: ProjectSectionId[] = PROJECT_OPTIONAL_SECTIONS.map(s => s.id)
+
 export default function ReportForm({
   reportType,
   departments,
@@ -192,6 +209,17 @@ export default function ReportForm({
 
   // 기존 데이터에서 notes 파싱
   const parsedNotes = existingReport?.notes ? JSON.parse(existingReport.notes) : {}
+
+  // 프로젝트 기획서: 선택된 섹션 토글
+  const [enabledSections, setEnabledSections] = useState<ProjectSectionId[]>(
+    parsedNotes.project_sections || ALL_PROJECT_SECTIONS
+  )
+  const isSectionEnabled = useCallback((id: ProjectSectionId) => enabledSections.includes(id), [enabledSections])
+  const toggleSection = useCallback((id: ProjectSectionId) => {
+    setEnabledSections(prev =>
+      prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]
+    )
+  }, [])
 
   // 공통 필드
   const [form, setForm] = useState({
@@ -552,6 +580,7 @@ export default function ReportForm({
           other_notes: form.other_notes,
           cell_attendance: reportType === 'weekly' ? cellAttendance : [],
           organization: reportType === 'project' ? form.organization : undefined,
+          project_sections: reportType === 'project' ? enabledSections : undefined,
         }),
         status: isDraft ? 'draft' : 'submitted',
         submitted_at: isDraft ? null : new Date().toISOString(),
@@ -778,12 +807,18 @@ export default function ReportForm({
       return SECTIONS.filter(s => !['program', 'attendance', 'newcomer', 'overview', 'plan', 'budget'].includes(s.id))
     }
     if (reportType === 'project') {
-      // 프로젝트: 순서/출결/새신자/셀출석 제외, 개요/계획/예산 포함
-      return SECTIONS.filter(s => !['program', 'cell-attendance', 'attendance', 'newcomer'].includes(s.id))
+      // 프로젝트: 순서/출결/새신자/셀출석 제외
+      const hideNav: string[] = ['program', 'cell-attendance', 'attendance', 'newcomer']
+      // 토글로 비활성화된 섹션의 네비게이션도 제외
+      if (!enabledSections.includes('overview') && !enabledSections.includes('purpose') && !enabledSections.includes('organization')) hideNav.push('overview')
+      if (!enabledSections.includes('content') && !enabledSections.includes('schedule')) hideNav.push('plan')
+      if (!enabledSections.includes('budget')) hideNav.push('budget')
+      if (!enabledSections.includes('discussion') && !enabledSections.includes('other')) hideNav.push('notes')
+      return SECTIONS.filter(s => !hideNav.includes(s.id))
     }
     // 모임/교육 보고서는 출결/새신자/프로젝트/셀출석 섹션 제외
     return SECTIONS.filter(s => !['cell-attendance', 'attendance', 'newcomer', 'overview', 'plan', 'budget'].includes(s.id))
-  }, [reportType])
+  }, [reportType, enabledSections])
 
   // sectionRef 콜백 생성
   const setSectionRef = useCallback((key: string) => (el: HTMLDivElement | null) => {
@@ -925,6 +960,40 @@ export default function ReportForm({
         </div>
       </div>
 
+      {/* 프로젝트 기획서: 포함할 항목 선택 */}
+      {reportType === 'project' && (
+        <div className="bg-white rounded-xl shadow-sm border border-blue-100 p-4 md:p-6 scroll-mt-24">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-semibold text-gray-900 text-sm md:text-base">포함할 항목</h2>
+            <button
+              type="button"
+              onClick={() => setEnabledSections(
+                enabledSections.length === ALL_PROJECT_SECTIONS.length ? [] : [...ALL_PROJECT_SECTIONS]
+              )}
+              className="text-xs text-blue-600 font-medium"
+            >
+              {enabledSections.length === ALL_PROJECT_SECTIONS.length ? '전체 해제' : '전체 선택'}
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {PROJECT_OPTIONAL_SECTIONS.map((section) => (
+              <button
+                key={section.id}
+                type="button"
+                onClick={() => toggleSection(section.id)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border ${
+                  isSectionEnabled(section.id)
+                    ? 'bg-blue-50 text-blue-700 border-blue-200'
+                    : 'bg-gray-50 text-gray-400 border-gray-200 line-through'
+                }`}
+              >
+                {isSectionEnabled(section.id) ? '✓ ' : ''}{section.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 진행순서 (셀장/프로젝트 보고서 제외) */}
       {reportType !== 'cell_leader' && reportType !== 'project' && (
         <ProgramTable
@@ -990,54 +1059,59 @@ export default function ReportForm({
       )}
 
       {/* 프로젝트: 개요/목적/조직도 */}
-      {reportType === 'project' && (
+      {reportType === 'project' && (isSectionEnabled('overview') || isSectionEnabled('purpose') || isSectionEnabled('organization')) && (
         <div
           ref={(el) => { sectionRefs.current['overview'] = el }}
           data-section="overview"
           className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 md:p-6 space-y-4 scroll-mt-24"
         >
-          <h2 className="font-semibold text-gray-900 text-base md:text-lg border-b pb-2">개요 / 목적 / 조직도</h2>
-          <div>
-            <label className="block font-semibold text-gray-900 mb-2 text-sm md:text-base">1. 개요</label>
-            <RichTextEditor
-              value={form.main_content}
-              onChange={(value) => setForm({ ...form, main_content: value })}
-              placeholder="프로젝트 개요를 입력하세요"
-              minHeight="120px"
-            />
-          </div>
-          <div>
-            <label className="block font-semibold text-gray-900 mb-2 text-sm md:text-base">2. 목적</label>
-            <RichTextEditor
-              value={form.application_notes}
-              onChange={(value) => setForm({ ...form, application_notes: value })}
-              placeholder="프로젝트 목적을 입력하세요"
-              minHeight="120px"
-            />
-          </div>
-          <div>
-            <label className="block font-semibold text-gray-900 mb-2 text-sm md:text-base">3. 조직도</label>
-            <RichTextEditor
-              value={form.organization}
-              onChange={(value) => setForm({ ...form, organization: value })}
-              placeholder="조직 구성을 입력하세요"
-              minHeight="100px"
-            />
-          </div>
+          {isSectionEnabled('overview') && (
+            <div>
+              <label className="block font-semibold text-gray-900 mb-2 text-sm md:text-base">1. 개요</label>
+              <RichTextEditor
+                value={form.main_content}
+                onChange={(value) => setForm({ ...form, main_content: value })}
+                placeholder="프로젝트 개요를 입력하세요"
+                minHeight="120px"
+              />
+            </div>
+          )}
+          {isSectionEnabled('purpose') && (
+            <div>
+              <label className="block font-semibold text-gray-900 mb-2 text-sm md:text-base">2. 목적</label>
+              <RichTextEditor
+                value={form.application_notes}
+                onChange={(value) => setForm({ ...form, application_notes: value })}
+                placeholder="프로젝트 목적을 입력하세요"
+                minHeight="120px"
+              />
+            </div>
+          )}
+          {isSectionEnabled('organization') && (
+            <div>
+              <label className="block font-semibold text-gray-900 mb-2 text-sm md:text-base">3. 조직도</label>
+              <RichTextEditor
+                value={form.organization}
+                onChange={(value) => setForm({ ...form, organization: value })}
+                placeholder="조직 구성을 입력하세요"
+                minHeight="100px"
+              />
+            </div>
+          )}
         </div>
       )}
 
       {/* 프로젝트: 세부계획 (내용 + 일정표) */}
-      {reportType === 'project' && (
+      {reportType === 'project' && (isSectionEnabled('content') || isSectionEnabled('schedule')) && (
         <div
           ref={(el) => { sectionRefs.current['plan'] = el }}
           data-section="plan"
           className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 md:p-6 space-y-6 scroll-mt-24"
         >
-          <h2 className="font-semibold text-gray-900 text-base md:text-lg border-b pb-2">4. 세부 계획</h2>
+          <h2 className="font-semibold text-gray-900 text-base md:text-lg border-b pb-2">세부 계획</h2>
 
           {/* 내용 테이블 (4열) */}
-          <div>
+          {isSectionEnabled('content') && <div>
             <div className="flex items-center justify-between mb-2">
               <label className="font-medium text-gray-700 text-sm">내용</label>
               <button
@@ -1076,10 +1150,10 @@ export default function ReportForm({
                 </tbody>
               </table>
             </div>
-          </div>
+          </div>}
 
           {/* 세부 일정표 */}
-          <div>
+          {isSectionEnabled('schedule') && <div>
             <div className="flex items-center justify-between mb-2">
               <label className="font-medium text-gray-700 text-sm">세부 일정표</label>
               <button
@@ -1116,12 +1190,12 @@ export default function ReportForm({
                 </tbody>
               </table>
             </div>
-          </div>
+          </div>}
         </div>
       )}
 
       {/* 프로젝트: 예산 */}
-      {reportType === 'project' && (
+      {reportType === 'project' && isSectionEnabled('budget') && (
         <div
           ref={(el) => { sectionRefs.current['budget'] = el }}
           data-section="budget"
@@ -1211,38 +1285,44 @@ export default function ReportForm({
         sectionRef={setSectionRef('photos')}
       />
 
-      {/* 논의사항 / 기타사항 */}
-      <div
-        ref={(el) => { sectionRefs.current['notes'] = el }}
-        data-section="notes"
-        className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 md:p-6 scroll-mt-24"
-      >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-          <div>
-            <label className="block font-semibold text-gray-900 mb-2 text-sm md:text-base">
-              {reportType === 'cell_leader' ? '기도제목' : reportType === 'education' ? '적용점' : '논의(특이)사항'}
-            </label>
-            <RichTextEditor
-              value={reportType === 'cell_leader' || reportType === 'education' ? form.application_notes : form.discussion_notes}
-              onChange={(value) => setForm({
-                ...form,
-                [reportType === 'cell_leader' || reportType === 'education' ? 'application_notes' : 'discussion_notes']: value
-              })}
-              placeholder={reportType === 'cell_leader' ? '기도제목을 입력하세요' : reportType === 'education' ? '적용점을 입력하세요' : reportType === 'project' ? '논의사항을 입력하세요' : '논의사항을 입력하세요'}
-              minHeight="120px"
-            />
-          </div>
-          <div>
-            <label className="block font-semibold text-gray-900 mb-2 text-sm md:text-base">기타사항</label>
-            <RichTextEditor
-              value={form.other_notes}
-              onChange={(value) => setForm({ ...form, other_notes: value })}
-              placeholder="기타사항을 입력하세요"
-              minHeight="120px"
-            />
+      {/* 논의사항 / 기타사항 (프로젝트: 토글 가능) */}
+      {(reportType !== 'project' || isSectionEnabled('discussion') || isSectionEnabled('other')) && (
+        <div
+          ref={(el) => { sectionRefs.current['notes'] = el }}
+          data-section="notes"
+          className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 md:p-6 scroll-mt-24"
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+            {(reportType !== 'project' || isSectionEnabled('discussion')) && (
+              <div>
+                <label className="block font-semibold text-gray-900 mb-2 text-sm md:text-base">
+                  {reportType === 'cell_leader' ? '기도제목' : reportType === 'education' ? '적용점' : '논의(특이)사항'}
+                </label>
+                <RichTextEditor
+                  value={reportType === 'cell_leader' || reportType === 'education' ? form.application_notes : form.discussion_notes}
+                  onChange={(value) => setForm({
+                    ...form,
+                    [reportType === 'cell_leader' || reportType === 'education' ? 'application_notes' : 'discussion_notes']: value
+                  })}
+                  placeholder={reportType === 'cell_leader' ? '기도제목을 입력하세요' : reportType === 'education' ? '적용점을 입력하세요' : '논의사항을 입력하세요'}
+                  minHeight="120px"
+                />
+              </div>
+            )}
+            {(reportType !== 'project' || isSectionEnabled('other')) && (
+              <div>
+                <label className="block font-semibold text-gray-900 mb-2 text-sm md:text-base">기타사항</label>
+                <RichTextEditor
+                  value={form.other_notes}
+                  onChange={(value) => setForm({ ...form, other_notes: value })}
+                  placeholder="기타사항을 입력하세요"
+                  minHeight="120px"
+                />
+              </div>
+            )}
           </div>
         </div>
-      </div>
+      )}
 
       {error && (
         <div className="bg-red-50 text-red-600 px-3 md:px-4 py-2.5 md:py-3 rounded-xl text-sm">
