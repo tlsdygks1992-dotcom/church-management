@@ -366,16 +366,9 @@ export default function ReportForm({
     : [{ schedule: '', detail: '', note: '', order_index: 0 }]
   const [scheduleItems, setScheduleItems] = useState<ProjectScheduleItem[]>(initialScheduleItems)
 
-  // 프로젝트 보고서: 예산
+  // 프로젝트 보고서: 예산 (관은 항상 '교육위원회'로 자동 저장)
   const DEFAULT_BUDGET: ProjectBudgetItem[] = [
-    { category: '교육위원회', subcategory: '예배비', item_name: '환경조성비', basis: '', amount: 0, note: '', order_index: 0 },
-    { category: '교육위원회', subcategory: '예배비', item_name: '특별활동비', basis: '', amount: 0, note: '', order_index: 1 },
-    { category: '교육위원회', subcategory: '교육비', item_name: '강사비(특강)', basis: '', amount: 0, note: '', order_index: 2 },
-    { category: '교육위원회', subcategory: '교육비', item_name: '연구비', basis: '', amount: 0, note: '', order_index: 3 },
-    { category: '교육위원회', subcategory: '교육비', item_name: '소그룹비/리더모임비', basis: '', amount: 0, note: '', order_index: 4 },
-    { category: '교육위원회', subcategory: '기타운영비', item_name: '심방비', basis: '', amount: 0, note: '', order_index: 5 },
-    { category: '교육위원회', subcategory: '기타운영비', item_name: '경조사비', basis: '', amount: 0, note: '', order_index: 6 },
-    { category: '교육위원회', subcategory: '기타운영비', item_name: '예비비', basis: '', amount: 0, note: '', order_index: 7 },
+    { category: '교육위원회', subcategory: '', item_name: '', basis: '', amount: 0, note: '', order_index: 0 },
   ]
   const initialBudgetItems: ProjectBudgetItem[] = existingReport?.projectBudgetItems?.length
     ? existingReport.projectBudgetItems.map(b => ({
@@ -505,7 +498,7 @@ export default function ReportForm({
 
   // 프로젝트: 예산 관리
   const addBudgetItem = useCallback(() => {
-    setBudgetItems(prev => [...prev, { category: '', subcategory: '', item_name: '', basis: '', amount: 0, note: '', order_index: prev.length }])
+    setBudgetItems(prev => [...prev, { category: '교육위원회', subcategory: '', item_name: '', basis: '', amount: 0, note: '', order_index: prev.length }])
   }, [])
   const removeBudgetItem = useCallback((index: number) => {
     setBudgetItems(prev => prev.filter((_, i) => i !== index))
@@ -1231,19 +1224,17 @@ export default function ReportForm({
             <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
               <thead>
                 <tr className="bg-gray-50">
-                  <th className="px-2 py-2 text-left font-medium text-gray-600 border-b text-xs" style={{ width: '12%' }}>관</th>
-                  <th className="px-2 py-2 text-left font-medium text-gray-600 border-b text-xs" style={{ width: '14%' }}>항</th>
-                  <th className="px-2 py-2 text-left font-medium text-gray-600 border-b text-xs" style={{ width: '16%' }}>목</th>
-                  <th className="px-2 py-2 text-left font-medium text-gray-600 border-b text-xs" style={{ width: '20%' }}>산출 근거</th>
-                  <th className="px-2 py-2 text-right font-medium text-gray-600 border-b text-xs" style={{ width: '14%' }}>예산액</th>
-                  <th className="px-2 py-2 text-left font-medium text-gray-600 border-b text-xs" style={{ width: '14%' }}>비고</th>
+                  <th className="px-2 py-2 text-left font-medium text-gray-600 border-b text-xs" style={{ width: '16%' }}>항</th>
+                  <th className="px-2 py-2 text-left font-medium text-gray-600 border-b text-xs" style={{ width: '18%' }}>목</th>
+                  <th className="px-2 py-2 text-left font-medium text-gray-600 border-b text-xs" style={{ width: '24%' }}>산출 근거</th>
+                  <th className="px-2 py-2 text-right font-medium text-gray-600 border-b text-xs" style={{ width: '16%' }}>예산액</th>
+                  <th className="px-2 py-2 text-left font-medium text-gray-600 border-b text-xs" style={{ width: '16%' }}>비고</th>
                   <th className="px-1 py-2 border-b w-8"></th>
                 </tr>
               </thead>
               <tbody>
                 {budgetItems.map((item, i) => (
                   <tr key={i} className="border-b border-gray-100 last:border-b-0">
-                    <td className="px-1 py-1"><input type="text" value={item.category} onChange={(e) => updateBudgetItem(i, 'category', e.target.value)} className="w-full px-1.5 py-1.5 border border-gray-200 rounded text-xs" /></td>
                     <td className="px-1 py-1"><input type="text" value={item.subcategory} onChange={(e) => updateBudgetItem(i, 'subcategory', e.target.value)} className="w-full px-1.5 py-1.5 border border-gray-200 rounded text-xs" /></td>
                     <td className="px-1 py-1"><input type="text" value={item.item_name} onChange={(e) => updateBudgetItem(i, 'item_name', e.target.value)} className="w-full px-1.5 py-1.5 border border-gray-200 rounded text-xs" /></td>
                     <td className="px-1 py-1"><input type="text" value={item.basis} onChange={(e) => updateBudgetItem(i, 'basis', e.target.value)} className="w-full px-1.5 py-1.5 border border-gray-200 rounded text-xs" placeholder="산출 근거" /></td>
@@ -1257,7 +1248,7 @@ export default function ReportForm({
               </tbody>
               <tfoot>
                 <tr className="bg-blue-50">
-                  <td colSpan={4} className="px-3 py-2 text-right font-bold text-gray-900 text-sm">합계</td>
+                  <td colSpan={3} className="px-3 py-2 text-right font-bold text-gray-900 text-sm">합계</td>
                   <td className="px-3 py-2 text-right font-bold text-blue-700 text-sm">
                     {budgetItems.reduce((sum, b) => sum + (b.amount || 0), 0).toLocaleString()}
                   </td>

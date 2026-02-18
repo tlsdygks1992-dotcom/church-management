@@ -770,7 +770,6 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
             <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
               <thead>
                 <tr className="bg-gray-50">
-                  <th className="px-3 py-2 text-left font-medium text-gray-600 border-b text-xs">관</th>
                   <th className="px-3 py-2 text-left font-medium text-gray-600 border-b text-xs">항</th>
                   <th className="px-3 py-2 text-left font-medium text-gray-600 border-b text-xs">목</th>
                   <th className="px-3 py-2 text-left font-medium text-gray-600 border-b text-xs">산출 근거</th>
@@ -781,7 +780,6 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
               <tbody>
                 {projectBudgetItems.map((item) => (
                   <tr key={item.id} className="border-b border-gray-100 last:border-b-0">
-                    <td className="px-3 py-2 text-gray-900 text-xs">{item.category}</td>
                     <td className="px-3 py-2 text-gray-700 text-xs">{item.subcategory}</td>
                     <td className="px-3 py-2 text-gray-700 text-xs">{item.item_name}</td>
                     <td className="px-3 py-2 text-gray-600 text-xs">{item.basis}</td>
@@ -792,7 +790,7 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
               </tbody>
               <tfoot>
                 <tr className="bg-blue-50">
-                  <td colSpan={4} className="px-3 py-2 text-right font-bold text-gray-900 text-sm">합계</td>
+                  <td colSpan={3} className="px-3 py-2 text-right font-bold text-gray-900 text-sm">합계</td>
                   <td className="px-3 py-2 text-right font-bold text-blue-700 text-sm">
                     {projectBudgetItems.reduce((sum, b) => sum + (b.amount || 0), 0).toLocaleString()}
                   </td>
@@ -1738,40 +1736,32 @@ function generateProjectPrintHTML(
       </tr>`).join('')
     : `<tr><td class="cell" colspan="3" style="height:40px;"></td></tr>`
 
-  // 예산 (관/항 rowspan 처리)
+  // 예산 (항 rowspan 처리)
   let budgetRows = ''
   if (budgetItems.length > 0) {
-    // 관별/항별 그룹핑
-    const groups: Record<string, Record<string, typeof budgetItems>> = {}
+    // 항별 그룹핑
+    const groups: Record<string, typeof budgetItems> = {}
     for (const b of budgetItems) {
-      const cat = b.category || ''
       const sub = b.subcategory || ''
-      if (!groups[cat]) groups[cat] = {}
-      if (!groups[cat][sub]) groups[cat][sub] = []
-      groups[cat][sub].push(b)
+      if (!groups[sub]) groups[sub] = []
+      groups[sub].push(b)
     }
 
-    for (const [cat, subs] of Object.entries(groups)) {
-      const catTotal = Object.values(subs).flat().length
-      let catFirst = true
-      for (const [sub, items] of Object.entries(subs)) {
-        let subFirst = true
-        for (const item of items) {
-          budgetRows += `<tr>
-            ${catFirst ? `<td class="cell" rowspan="${catTotal}" style="font-weight:bold;vertical-align:middle;">${cat}</td>` : ''}
+    for (const [sub, items] of Object.entries(groups)) {
+      let subFirst = true
+      for (const item of items) {
+        budgetRows += `<tr>
             ${subFirst ? `<td class="cell" rowspan="${items.length}" style="vertical-align:middle;">${sub}</td>` : ''}
             <td class="cell">${item.item_name || ''}</td>
             <td class="cell" style="text-align:left;">${item.basis || ''}</td>
             <td class="cell" style="text-align:right;">${item.amount ? item.amount.toLocaleString() : ''}</td>
             <td class="cell">${item.note || ''}</td>
           </tr>`
-          catFirst = false
-          subFirst = false
-        }
+        subFirst = false
       }
     }
   } else {
-    budgetRows = `<tr><td class="cell" colspan="6" style="height:40px;"></td></tr>`
+    budgetRows = `<tr><td class="cell" colspan="5" style="height:40px;"></td></tr>`
   }
 
   const budgetTotal = budgetItems.reduce((sum: number, b: any) => sum + (b.amount || 0), 0)
@@ -1902,19 +1892,15 @@ ${has('budget') ? `<div class="section-title"><span class="section-num">${sn('bu
 <div style="text-align:right;margin-bottom:4px;font-size:9pt;">(단위: 원)</div>
 <table style="width:100%;">
   <tr style="background:#6b7b8d;">
-    <td class="cell" colspan="3" style="color:#fff;font-weight:bold;">과목</td>
-    <td class="cell" rowspan="2" style="color:#fff;font-weight:bold;background:#6b7b8d;vertical-align:middle;">산출 근거</td>
-    <td class="cell" rowspan="2" style="color:#fff;font-weight:bold;background:#6b7b8d;width:12%;vertical-align:middle;">예산액</td>
-    <td class="cell" rowspan="2" style="color:#fff;font-weight:bold;background:#6b7b8d;width:10%;vertical-align:middle;">비고</td>
-  </tr>
-  <tr style="background:#6b7b8d;">
-    <td class="cell" style="color:#fff;font-weight:bold;width:12%;">관</td>
-    <td class="cell" style="color:#fff;font-weight:bold;width:12%;">항</td>
-    <td class="cell" style="color:#fff;font-weight:bold;width:16%;">목</td>
+    <td class="cell" style="color:#fff;font-weight:bold;width:14%;">항</td>
+    <td class="cell" style="color:#fff;font-weight:bold;width:18%;">목</td>
+    <td class="cell" style="color:#fff;font-weight:bold;">산출 근거</td>
+    <td class="cell" style="color:#fff;font-weight:bold;width:12%;">예산액</td>
+    <td class="cell" style="color:#fff;font-weight:bold;width:10%;">비고</td>
   </tr>
   ${budgetRows}
   <tr style="background:#e6f0ff;">
-    <td class="cell" colspan="3" style="font-weight:bold;">계</td>
+    <td class="cell" colspan="2" style="font-weight:bold;">계</td>
     <td class="cell"></td>
     <td class="cell" style="font-weight:bold;text-align:right;">${budgetTotal > 0 ? budgetTotal.toLocaleString() : '0'}</td>
     <td class="cell"></td>
