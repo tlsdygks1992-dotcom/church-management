@@ -46,6 +46,8 @@ export interface ProjectBudgetItem {
   subcategory: string
   item_name: string
   basis: string
+  unit_price: number
+  quantity: number
   amount: number
   note: string
   order_index: number

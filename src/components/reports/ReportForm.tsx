@@ -70,6 +70,8 @@ interface ExistingReport {
     subcategory: string
     item_name: string
     basis: string
+    unit_price?: number
+    quantity?: number
     amount: number
     note: string
     order_index: number
@@ -368,12 +370,13 @@ export default function ReportForm({
 
   // 프로젝트 보고서: 예산 (관은 항상 '교육위원회'로 자동 저장)
   const DEFAULT_BUDGET: ProjectBudgetItem[] = [
-    { category: '교육위원회', subcategory: '', item_name: '', basis: '', amount: 0, note: '', order_index: 0 },
+    { category: '교육위원회', subcategory: '', item_name: '', basis: '', unit_price: 0, quantity: 1, amount: 0, note: '', order_index: 0 },
   ]
   const initialBudgetItems: ProjectBudgetItem[] = existingReport?.projectBudgetItems?.length
     ? existingReport.projectBudgetItems.map(b => ({
         category: b.category || '', subcategory: b.subcategory || '', item_name: b.item_name || '',
-        basis: b.basis || '', amount: b.amount || 0, note: b.note || '', order_index: b.order_index,
+        basis: b.basis || '', unit_price: b.unit_price ?? b.amount ?? 0, quantity: b.quantity ?? 1,
+        amount: b.amount || 0, note: b.note || '', order_index: b.order_index,
       }))
     : DEFAULT_BUDGET
   const [budgetItems, setBudgetItems] = useState<ProjectBudgetItem[]>(initialBudgetItems)
@@ -498,7 +501,7 @@ export default function ReportForm({
 
   // 프로젝트: 예산 관리
   const addBudgetItem = useCallback(() => {
-    setBudgetItems(prev => [...prev, { category: '교육위원회', subcategory: '', item_name: '', basis: '', amount: 0, note: '', order_index: prev.length }])
+    setBudgetItems(prev => [...prev, { category: '교육위원회', subcategory: '', item_name: '', basis: '', unit_price: 0, quantity: 1, amount: 0, note: '', order_index: prev.length }])
   }, [])
   const removeBudgetItem = useCallback((index: number) => {
     setBudgetItems(prev => prev.filter((_, i) => i !== index))
@@ -696,11 +699,12 @@ export default function ReportForm({
           )
         }
         // 예산
-        if (budgetItems.some(b => b.item_name || b.amount > 0)) {
+        if (budgetItems.some(b => b.item_name || b.unit_price > 0)) {
           await supabase.from('project_budget_items').insert(
-            budgetItems.filter(b => b.item_name || b.amount > 0).map((b, i) => ({
+            budgetItems.filter(b => b.item_name || b.unit_price > 0).map((b, i) => ({
               report_id: reportId, category: b.category, subcategory: b.subcategory, item_name: b.item_name,
-              basis: b.basis, amount: b.amount, note: b.note, order_index: i,
+              basis: b.basis, unit_price: b.unit_price || 0, quantity: b.quantity || 1,
+              amount: (b.unit_price || 0) * (b.quantity || 0), note: b.note, order_index: i,
             }))
           )
         }
@@ -1224,11 +1228,13 @@ export default function ReportForm({
             <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
               <thead>
                 <tr className="bg-gray-50">
-                  <th className="px-2 py-2 text-left font-medium text-gray-600 border-b text-xs" style={{ width: '16%' }}>항</th>
-                  <th className="px-2 py-2 text-left font-medium text-gray-600 border-b text-xs" style={{ width: '18%' }}>목</th>
-                  <th className="px-2 py-2 text-left font-medium text-gray-600 border-b text-xs" style={{ width: '24%' }}>산출 근거</th>
-                  <th className="px-2 py-2 text-right font-medium text-gray-600 border-b text-xs" style={{ width: '16%' }}>예산액</th>
-                  <th className="px-2 py-2 text-left font-medium text-gray-600 border-b text-xs" style={{ width: '16%' }}>비고</th>
+                  <th className="px-2 py-2 text-left font-medium text-gray-600 border-b text-xs" style={{ width: '13%' }}>항</th>
+                  <th className="px-2 py-2 text-left font-medium text-gray-600 border-b text-xs" style={{ width: '13%' }}>목</th>
+                  <th className="px-2 py-2 text-left font-medium text-gray-600 border-b text-xs" style={{ width: '20%' }}>세부품목</th>
+                  <th className="px-2 py-2 text-right font-medium text-gray-600 border-b text-xs" style={{ width: '14%' }}>금액</th>
+                  <th className="px-2 py-2 text-right font-medium text-gray-600 border-b text-xs" style={{ width: '10%' }}>개수</th>
+                  <th className="px-2 py-2 text-right font-medium text-gray-600 border-b text-xs" style={{ width: '14%' }}>합계</th>
+                  <th className="px-2 py-2 text-left font-medium text-gray-600 border-b text-xs" style={{ width: '12%' }}>비고</th>
                   <th className="px-1 py-2 border-b w-8"></th>
                 </tr>
               </thead>
@@ -1237,8 +1243,12 @@ export default function ReportForm({
                   <tr key={i} className="border-b border-gray-100 last:border-b-0">
                     <td className="px-1 py-1"><input type="text" value={item.subcategory} onChange={(e) => updateBudgetItem(i, 'subcategory', e.target.value)} className="w-full px-1.5 py-1.5 border border-gray-200 rounded text-xs" /></td>
                     <td className="px-1 py-1"><input type="text" value={item.item_name} onChange={(e) => updateBudgetItem(i, 'item_name', e.target.value)} className="w-full px-1.5 py-1.5 border border-gray-200 rounded text-xs" /></td>
-                    <td className="px-1 py-1"><input type="text" value={item.basis} onChange={(e) => updateBudgetItem(i, 'basis', e.target.value)} className="w-full px-1.5 py-1.5 border border-gray-200 rounded text-xs" placeholder="산출 근거" /></td>
-                    <td className="px-1 py-1"><input type="number" value={item.amount || ''} onChange={(e) => updateBudgetItem(i, 'amount', parseInt(e.target.value) || 0)} className="w-full px-1.5 py-1.5 border border-gray-200 rounded text-xs text-right" placeholder="0" /></td>
+                    <td className="px-1 py-1"><input type="text" value={item.basis} onChange={(e) => updateBudgetItem(i, 'basis', e.target.value)} className="w-full px-1.5 py-1.5 border border-gray-200 rounded text-xs" placeholder="세부품목" /></td>
+                    <td className="px-1 py-1"><input type="number" value={item.unit_price || ''} onChange={(e) => updateBudgetItem(i, 'unit_price', parseInt(e.target.value) || 0)} className="w-full px-1.5 py-1.5 border border-gray-200 rounded text-xs text-right" placeholder="0" /></td>
+                    <td className="px-1 py-1"><input type="number" value={item.quantity || ''} onChange={(e) => updateBudgetItem(i, 'quantity', parseInt(e.target.value) || 0)} className="w-full px-1.5 py-1.5 border border-gray-200 rounded text-xs text-right" placeholder="1" /></td>
+                    <td className="px-1 py-1 text-right text-xs font-medium text-gray-900 whitespace-nowrap">
+                      {((item.unit_price || 0) * (item.quantity || 0)).toLocaleString()}
+                    </td>
                     <td className="px-1 py-1"><input type="text" value={item.note} onChange={(e) => updateBudgetItem(i, 'note', e.target.value)} className="w-full px-1.5 py-1.5 border border-gray-200 rounded text-xs" /></td>
                     <td className="px-1 py-1 text-center">
                       <button type="button" onClick={() => removeBudgetItem(i)} className="text-red-400 hover:text-red-600 text-lg leading-none">&times;</button>
@@ -1248,9 +1258,9 @@ export default function ReportForm({
               </tbody>
               <tfoot>
                 <tr className="bg-blue-50">
-                  <td colSpan={3} className="px-3 py-2 text-right font-bold text-gray-900 text-sm">합계</td>
+                  <td colSpan={5} className="px-3 py-2 text-right font-bold text-gray-900 text-sm">합계</td>
                   <td className="px-3 py-2 text-right font-bold text-blue-700 text-sm">
-                    {budgetItems.reduce((sum, b) => sum + (b.amount || 0), 0).toLocaleString()}
+                    {budgetItems.reduce((sum, b) => sum + ((b.unit_price || 0) * (b.quantity || 0)), 0).toLocaleString()}
                   </td>
                   <td colSpan={2}></td>
                 </tr>

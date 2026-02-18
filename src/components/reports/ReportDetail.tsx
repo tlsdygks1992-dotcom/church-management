@@ -772,27 +772,34 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
                 <tr className="bg-gray-50">
                   <th className="px-3 py-2 text-left font-medium text-gray-600 border-b text-xs">항</th>
                   <th className="px-3 py-2 text-left font-medium text-gray-600 border-b text-xs">목</th>
-                  <th className="px-3 py-2 text-left font-medium text-gray-600 border-b text-xs">산출 근거</th>
-                  <th className="px-3 py-2 text-right font-medium text-gray-600 border-b text-xs">예산액</th>
+                  <th className="px-3 py-2 text-left font-medium text-gray-600 border-b text-xs">세부품목</th>
+                  <th className="px-3 py-2 text-right font-medium text-gray-600 border-b text-xs">금액</th>
+                  <th className="px-3 py-2 text-right font-medium text-gray-600 border-b text-xs">개수</th>
+                  <th className="px-3 py-2 text-right font-medium text-gray-600 border-b text-xs">합계</th>
                   <th className="px-3 py-2 text-left font-medium text-gray-600 border-b text-xs">비고</th>
                 </tr>
               </thead>
               <tbody>
-                {projectBudgetItems.map((item) => (
-                  <tr key={item.id} className="border-b border-gray-100 last:border-b-0">
-                    <td className="px-3 py-2 text-gray-700 text-xs">{item.subcategory}</td>
-                    <td className="px-3 py-2 text-gray-700 text-xs">{item.item_name}</td>
-                    <td className="px-3 py-2 text-gray-600 text-xs">{item.basis}</td>
-                    <td className="px-3 py-2 text-right font-medium text-gray-900 text-xs">{item.amount ? item.amount.toLocaleString() : ''}</td>
-                    <td className="px-3 py-2 text-gray-500 text-xs">{item.note}</td>
-                  </tr>
-                ))}
+                {projectBudgetItems.map((item) => {
+                  const rowTotal = (item.unit_price || 0) * (item.quantity || 0) || item.amount || 0
+                  return (
+                    <tr key={item.id} className="border-b border-gray-100 last:border-b-0">
+                      <td className="px-3 py-2 text-gray-700 text-xs">{item.subcategory}</td>
+                      <td className="px-3 py-2 text-gray-700 text-xs">{item.item_name}</td>
+                      <td className="px-3 py-2 text-gray-600 text-xs">{item.basis}</td>
+                      <td className="px-3 py-2 text-right font-medium text-gray-900 text-xs">{item.unit_price ? item.unit_price.toLocaleString() : ''}</td>
+                      <td className="px-3 py-2 text-right text-gray-700 text-xs">{item.quantity ?? ''}</td>
+                      <td className="px-3 py-2 text-right font-medium text-gray-900 text-xs">{rowTotal ? rowTotal.toLocaleString() : ''}</td>
+                      <td className="px-3 py-2 text-gray-500 text-xs">{item.note}</td>
+                    </tr>
+                  )
+                })}
               </tbody>
               <tfoot>
                 <tr className="bg-blue-50">
-                  <td colSpan={3} className="px-3 py-2 text-right font-bold text-gray-900 text-sm">합계</td>
+                  <td colSpan={5} className="px-3 py-2 text-right font-bold text-gray-900 text-sm">합계</td>
                   <td className="px-3 py-2 text-right font-bold text-blue-700 text-sm">
-                    {projectBudgetItems.reduce((sum, b) => sum + (b.amount || 0), 0).toLocaleString()}
+                    {projectBudgetItems.reduce((sum, b) => sum + ((b.unit_price || 0) * (b.quantity || 0) || b.amount || 0), 0).toLocaleString()}
                   </td>
                   <td></td>
                 </tr>
@@ -1750,21 +1757,24 @@ function generateProjectPrintHTML(
     for (const [sub, items] of Object.entries(groups)) {
       let subFirst = true
       for (const item of items) {
+        const rowTotal = (item.unit_price || 0) * (item.quantity || 0) || item.amount || 0
         budgetRows += `<tr>
             ${subFirst ? `<td class="cell" rowspan="${items.length}" style="vertical-align:middle;">${sub}</td>` : ''}
             <td class="cell">${item.item_name || ''}</td>
             <td class="cell" style="text-align:left;">${item.basis || ''}</td>
-            <td class="cell" style="text-align:right;">${item.amount ? item.amount.toLocaleString() : ''}</td>
+            <td class="cell" style="text-align:right;">${item.unit_price ? item.unit_price.toLocaleString() : ''}</td>
+            <td class="cell" style="text-align:right;">${item.quantity ?? ''}</td>
+            <td class="cell" style="text-align:right;">${rowTotal ? rowTotal.toLocaleString() : ''}</td>
             <td class="cell">${item.note || ''}</td>
           </tr>`
         subFirst = false
       }
     }
   } else {
-    budgetRows = `<tr><td class="cell" colspan="5" style="height:40px;"></td></tr>`
+    budgetRows = `<tr><td class="cell" colspan="7" style="height:40px;"></td></tr>`
   }
 
-  const budgetTotal = budgetItems.reduce((sum: number, b: any) => sum + (b.amount || 0), 0)
+  const budgetTotal = budgetItems.reduce((sum: number, b: any) => sum + ((b.unit_price || 0) * (b.quantity || 0) || b.amount || 0), 0)
 
   return `<!DOCTYPE html>
 <html>
@@ -1892,15 +1902,17 @@ ${has('budget') ? `<div class="section-title"><span class="section-num">${sn('bu
 <div style="text-align:right;margin-bottom:4px;font-size:9pt;">(단위: 원)</div>
 <table style="width:100%;">
   <tr style="background:#6b7b8d;">
-    <td class="cell" style="color:#fff;font-weight:bold;width:14%;">항</td>
-    <td class="cell" style="color:#fff;font-weight:bold;width:18%;">목</td>
-    <td class="cell" style="color:#fff;font-weight:bold;">산출 근거</td>
-    <td class="cell" style="color:#fff;font-weight:bold;width:12%;">예산액</td>
+    <td class="cell" style="color:#fff;font-weight:bold;width:12%;">항</td>
+    <td class="cell" style="color:#fff;font-weight:bold;width:14%;">목</td>
+    <td class="cell" style="color:#fff;font-weight:bold;">세부품목</td>
+    <td class="cell" style="color:#fff;font-weight:bold;width:10%;">금액</td>
+    <td class="cell" style="color:#fff;font-weight:bold;width:8%;">개수</td>
+    <td class="cell" style="color:#fff;font-weight:bold;width:12%;">합계</td>
     <td class="cell" style="color:#fff;font-weight:bold;width:10%;">비고</td>
   </tr>
   ${budgetRows}
   <tr style="background:#e6f0ff;">
-    <td class="cell" colspan="2" style="font-weight:bold;">계</td>
+    <td class="cell" colspan="4" style="font-weight:bold;">계</td>
     <td class="cell"></td>
     <td class="cell" style="font-weight:bold;text-align:right;">${budgetTotal > 0 ? budgetTotal.toLocaleString() : '0'}</td>
     <td class="cell"></td>
