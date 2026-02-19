@@ -69,7 +69,8 @@ export function usePendingReports(userRole: string) {
       return transformReports(data || [])
     },
     enabled: !!userRole,
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
 }
 
@@ -97,6 +98,7 @@ export function useCompletedReports(userRole: string) {
       return transformReports(data || [])
     },
     enabled: !!userRole,
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
 }
