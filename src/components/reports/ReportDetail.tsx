@@ -84,6 +84,7 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
   const canDelete = canAccessAllDepartments(userRole)
 
   const [loading, setLoading] = useState(false)
+  const [approvalDone, setApprovalDone] = useState(false)
   const [comment, setComment] = useState('')
   const [showApprovalModal, setShowApprovalModal] = useState(false)
   const [approvalAction, setApprovalAction] = useState<'approve' | 'reject'>('approve')
@@ -443,7 +444,8 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
         }),
       ])
 
-      // DB 완료 후 모달 닫기 (중복 결재 방지)
+      // DB 완료 즉시 버튼 숨기고 모달 닫기
+      setApprovalDone(true)
       setShowApprovalModal(false)
 
       // 쿼리 캐시 무효화 → 자동 refetch
@@ -1113,7 +1115,7 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
         </div>
 
         {/* 결재 버튼 */}
-        {canApprove && (
+        {canApprove && !approvalDone && (
           <div className="flex gap-3 mt-5 pt-5 border-t border-gray-100">
             <button
               disabled={loading}
