@@ -444,10 +444,10 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
         }),
       ])
 
-      // 캐시 무효화 후 결재함으로 이동
+      // 캐시 무효화 후 이전 페이지로 돌아가기
       await queryClient.invalidateQueries({ queryKey: ['approvals'] })
       await queryClient.invalidateQueries({ queryKey: ['reports'] })
-      router.push('/approvals')
+      router.back()
     } catch (error) {
       console.error(error)
     } finally {
