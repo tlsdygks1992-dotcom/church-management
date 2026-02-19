@@ -448,9 +448,15 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
       setApprovalDone(true)
       setShowApprovalModal(false)
 
-      // 쿼리 캐시 무효화 → 자동 refetch
-      await queryClient.invalidateQueries({ queryKey: ['approvals'] })
-      await queryClient.invalidateQueries({ queryKey: ['reports'] })
+      // 결재 목록 캐시 즉시 업데이트 (뒤로 가기 시 바로 반영)
+      queryClient.setQueryData(
+        ['approvals', 'pending', userRole],
+        (old: unknown[] | undefined) => old?.filter((r: any) => r.id !== report.id)
+      )
+
+      // 백그라운드 리패치
+      queryClient.invalidateQueries({ queryKey: ['approvals'] })
+      queryClient.invalidateQueries({ queryKey: ['reports'] })
       setComment('')
     } catch (error) {
       console.error(error)
