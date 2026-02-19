@@ -388,11 +388,8 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
   }
 
   const handleApproval = async () => {
-    if (!canApprove || !currentUser) return
+    if (!canApprove || !currentUser || loading) return
     setLoading(true)
-
-    // 즉시 모달 닫기 (UX 개선)
-    setShowApprovalModal(false)
 
     try {
       const now = new Date().toISOString()
@@ -446,14 +443,15 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
         }),
       ])
 
+      // DB 완료 후 모달 닫기 (중복 결재 방지)
+      setShowApprovalModal(false)
+
       // 쿼리 캐시 무효화 → 자동 refetch
       await queryClient.invalidateQueries({ queryKey: ['approvals'] })
       await queryClient.invalidateQueries({ queryKey: ['reports'] })
       setComment('')
     } catch (error) {
       console.error(error)
-      // 실패 시 모달 다시 열기
-      setShowApprovalModal(true)
     } finally {
       setLoading(false)
     }
@@ -1118,20 +1116,22 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
         {canApprove && (
           <div className="flex gap-3 mt-5 pt-5 border-t border-gray-100">
             <button
+              disabled={loading}
               onClick={() => {
                 setApprovalAction('reject')
                 setShowApprovalModal(true)
               }}
-              className="flex-1 py-3 border border-red-200 text-red-600 rounded-xl font-medium hover:bg-red-50 active:bg-red-100 transition-colors text-sm lg:text-base"
+              className="flex-1 py-3 border border-red-200 text-red-600 rounded-xl font-medium hover:bg-red-50 active:bg-red-100 transition-colors text-sm lg:text-base disabled:opacity-50"
             >
               반려
             </button>
             <button
+              disabled={loading}
               onClick={() => {
                 setApprovalAction('approve')
                 setShowApprovalModal(true)
               }}
-              className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 active:bg-blue-800 transition-colors text-sm lg:text-base"
+              className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 active:bg-blue-800 transition-colors text-sm lg:text-base disabled:opacity-50"
             >
               {canApprove === 'coordinator' && '협조'}
               {canApprove === 'manager' && '결재'}
