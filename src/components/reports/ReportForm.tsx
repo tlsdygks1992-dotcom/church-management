@@ -800,8 +800,8 @@ export default function ReportForm({
         })
       }
 
+      await queryClient.invalidateQueries({ queryKey: ['reports'] })
       router.push(`/reports?type=${reportType}`)
-      router.refresh()
     } catch (err) {
       setError('저장 중 오류가 발생했습니다.')
       console.error(err)
