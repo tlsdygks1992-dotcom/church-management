@@ -165,7 +165,7 @@ describe('createApprovalNotification', () => {
     // notifications에 insert
     expect(supabase.from).toHaveBeenCalledWith('notifications')
     // 푸시 트리거 호출
-    expect(fetch).toHaveBeenCalledWith('/api/push/send', expect.objectContaining({
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/api/push/send'), expect.objectContaining({
       method: 'POST',
     }))
   })
@@ -203,7 +203,7 @@ describe('createApprovalNotification', () => {
 
     expect(result).toBe(true)
     // 푸시 페이로드에 '보고서 반려' 제목 포함
-    expect(fetch).toHaveBeenCalledWith('/api/push/send', expect.objectContaining({
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/api/push/send'), expect.objectContaining({
       body: expect.stringContaining('보고서 반려'),
     }))
   })
@@ -292,13 +292,13 @@ describe('markAsRead', () => {
     const supabase = createMockSupabase({
       notifications: { data: null, error: null },
     })
-    const result = await markAsRead(supabase, ['noti-1', 'noti-2'])
+    const result = await markAsRead(supabase, ['noti-1', 'noti-2'], 'user-1')
     expect(result).toBe(true)
   })
 
   it('빈 배열이면 true 반환 (update 안 함)', async () => {
     const supabase = createMockSupabase()
-    const result = await markAsRead(supabase, [])
+    const result = await markAsRead(supabase, [], 'user-1')
     expect(result).toBe(true)
     expect(supabase.from).not.toHaveBeenCalled()
   })
@@ -307,7 +307,7 @@ describe('markAsRead', () => {
     const supabase = createMockSupabase({
       notifications: { error: { message: 'update failed' } },
     })
-    const result = await markAsRead(supabase, ['noti-1'])
+    const result = await markAsRead(supabase, ['noti-1'], 'user-1')
     expect(result).toBe(false)
   })
 })

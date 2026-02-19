@@ -3,6 +3,8 @@
 import { useState, useMemo, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
+import { toLocalDateString } from '@/lib/utils'
 import { canAccessAllDepartments, INCOME_CATEGORIES, EXPENSE_CATEGORIES, ExpenseCategory } from '@/types/database'
 import { useToastContext } from '@/providers/ToastProvider'
 import { useAuth } from '@/providers/AuthProvider'
@@ -11,6 +13,7 @@ import { useDepartments } from '@/queries/departments'
 export default function AccountingRecordForm() {
   const toast = useToastContext()
   const router = useRouter()
+  const queryClient = useQueryClient()
   const { user } = useAuth()
   const { data: allDepts = [] } = useDepartments()
   const [loading, setLoading] = useState(false)
@@ -25,7 +28,7 @@ export default function AccountingRecordForm() {
 
   const [formData, setFormData] = useState({
     department_id: '',
-    record_date: new Date().toISOString().split('T')[0],
+    record_date: toLocalDateString(new Date()),
     description: '',
     income_amount: 0,
     expense_amount: 0,
@@ -59,13 +62,20 @@ export default function AccountingRecordForm() {
     const supabase = createClient()
 
     // 현재 잔액 계산
-    const { data: prevRecords } = await supabase
+    const { data: prevRecords, error: balanceError } = await supabase
       .from('accounting_records')
       .select('income_amount, expense_amount')
       .eq('department_id', formData.department_id)
       .lte('record_date', formData.record_date)
       .order('record_date', { ascending: true })
       .order('created_at', { ascending: true })
+
+    if (balanceError) {
+      console.error('잔액 조회 오류:', balanceError)
+      toast.error('이전 잔액 조회에 실패했습니다. 다시 시도해주세요.')
+      setLoading(false)
+      return
+    }
 
     let currentBalance = 0
     if (prevRecords) {
@@ -94,6 +104,8 @@ export default function AccountingRecordForm() {
       console.error('저장 오류:', error)
       toast.error('저장 중 오류가 발생했습니다.')
     } else {
+      toast.success('회계 기록이 저장되었습니다.')
+      await queryClient.invalidateQueries({ queryKey: ['accounting'] })
       router.push('/accounting')
     }
     setLoading(false)

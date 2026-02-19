@@ -3,6 +3,8 @@
 import { useState, useMemo, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
+import { toLocalDateString } from '@/lib/utils'
 import { canAccessAllDepartments, EXPENSE_CATEGORIES, ExpenseCategory } from '@/types/database'
 import { useToastContext } from '@/providers/ToastProvider'
 import { useAuth } from '@/providers/AuthProvider'
@@ -19,6 +21,7 @@ interface ExpenseItemInput {
 
 export default function ExpenseRequestForm() {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const toast = useToastContext()
   const { user } = useAuth()
   const { data: allDepts = [] } = useDepartments()
@@ -34,13 +37,13 @@ export default function ExpenseRequestForm() {
 
   const [formData, setFormData] = useState({
     department_id: '',
-    request_date: new Date().toISOString().split('T')[0],
+    request_date: toLocalDateString(new Date()),
     recipient_name: '',
     notes: ''
   })
 
   const [items, setItems] = useState<ExpenseItemInput[]>([
-    { id: '1', item_date: new Date().toISOString().split('T')[0], description: '', category: '', amount: 0, notes: '' }
+    { id: '1', item_date: toLocalDateString(new Date()), description: '', category: '', amount: 0, notes: '' }
   ])
 
   const [addToLedger, setAddToLedger] = useState(true)
@@ -57,7 +60,7 @@ export default function ExpenseRequestForm() {
       ...prev,
       {
         id: Date.now().toString(),
-        item_date: new Date().toISOString().split('T')[0],
+        item_date: toLocalDateString(new Date()),
         description: '',
         category: '',
         amount: 0,
@@ -137,6 +140,9 @@ export default function ExpenseRequestForm() {
 
     if (itemsError) {
       console.error('지출결의서 항목 저장 오류:', itemsError)
+      toast.error('지출 항목 저장 중 오류가 발생했습니다.')
+      setLoading(false)
+      return
     }
 
     // 3. 회계장부에 반영 (옵션)
@@ -159,7 +165,7 @@ export default function ExpenseRequestForm() {
       for (const item of validItems) {
         currentBalance -= item.amount
 
-        await supabase
+        const { error: ledgerError } = await supabase
           .from('accounting_records')
           .insert({
             department_id: formData.department_id,
@@ -173,9 +179,19 @@ export default function ExpenseRequestForm() {
             expense_request_id: expenseRequest.id,
             created_by: user?.id
           })
+
+        if (ledgerError) {
+          console.error('회계장부 반영 오류:', ledgerError)
+          toast.error('회계장부 반영 중 오류가 발생했습니다.')
+          setLoading(false)
+          return
+        }
       }
     }
 
+    toast.success('지출결의서가 저장되었습니다.')
+    await queryClient.invalidateQueries({ queryKey: ['expense-requests'] })
+    await queryClient.invalidateQueries({ queryKey: ['accounting'] })
     router.push('/accounting/expense')
     setLoading(false)
   }

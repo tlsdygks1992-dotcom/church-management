@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
+import { toLocalDateString } from '@/lib/utils'
 import type { AccountingRecordWithDetails } from '@/types/database'
 
 const supabase = createClient()
@@ -16,7 +17,7 @@ export function useAccountingRecordsByMonth(
     queryKey: ['accounting', departmentId, year, month],
     queryFn: async (): Promise<AccountingRecordWithDetails[]> => {
       const startDate = `${year}-${String(month).padStart(2, '0')}-01`
-      const endDate = new Date(year, month, 0).toISOString().split('T')[0]
+      const endDate = toLocalDateString(new Date(year, month, 0))
 
       const { data, error } = await supabase
         .from('accounting_records')
@@ -69,7 +70,7 @@ export function usePreviousBalance(departmentId: string, year: number, month: nu
   return useQuery({
     queryKey: ['accounting', 'previousBalance', departmentId, year, month],
     queryFn: async (): Promise<number> => {
-      const endOfPrevMonth = new Date(year, month - 1, 0).toISOString().split('T')[0]
+      const endOfPrevMonth = toLocalDateString(new Date(year, month - 1, 0))
 
       const { data, error } = await supabase
         .from('accounting_records')
@@ -95,7 +96,7 @@ export function useExpenseRequests(departmentId: string, year: number, month: nu
     queryKey: ['expense-requests', departmentId, year, month],
     queryFn: async () => {
       const startDate = `${year}-${String(month).padStart(2, '0')}-01`
-      const endDate = new Date(year, month, 0).toISOString().split('T')[0]
+      const endDate = toLocalDateString(new Date(year, month, 0))
 
       const { data, error } = await supabase
         .from('expense_requests')

@@ -8,11 +8,10 @@ import { getAccessibleDepartmentIds } from '@/lib/permissions'
 
 const roleDisplayNames: Record<string, string> = {
   'president': '회장',
-  'manager': '부장',
-  'pastor': '담당목사',
+  'accountant': '부장',
+  'super_admin': '관리자',
   'team_leader': '팀장',
   'member': '교인',
-  'super_admin': '관리자'
 }
 
 export default function DashboardContent() {
@@ -126,7 +125,7 @@ export default function DashboardContent() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs lg:text-sm text-gray-500">
-                  {userRole === 'president' ? '협조 대기' : userRole === 'manager' ? '결재 대기' : '확인 대기'}
+                  {userRole === 'president' ? '협조 대기' : userRole === 'accountant' ? '결재 대기' : '확인 대기'}
                 </p>
                 <p className="text-xl lg:text-2xl font-bold text-orange-600 mt-0.5 lg:mt-1">{pendingReports.length}건</p>
               </div>
@@ -225,7 +224,7 @@ export default function DashboardContent() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="px-4 lg:px-5 py-3 lg:py-4 border-b border-gray-100 flex items-center justify-between">
             <h2 className="font-semibold text-gray-900 text-sm lg:text-base">
-              {userRole === 'president' ? '협조 대기 보고서' : userRole === 'manager' ? '결재 대기 보고서' : '확인 대기 보고서'}
+              {userRole === 'president' ? '협조 대기 보고서' : userRole === 'accountant' ? '결재 대기 보고서' : '확인 대기 보고서'}
             </h2>
             <Link href="/approvals" className="text-xs lg:text-sm text-blue-600 hover:text-blue-700">
               전체 보기

@@ -9,7 +9,7 @@ const supabase = createClient()
 /** 알림 목록 조회 */
 export function useNotifications(userId: string | undefined, limit = 20) {
   return useQuery({
-    queryKey: ['notifications', userId],
+    queryKey: ['notifications', userId, limit],
     queryFn: async (): Promise<Notification[]> => {
       if (!userId) return []
       const { data, error } = await supabase
@@ -50,12 +50,13 @@ export function useMarkAsRead() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (notificationIds: string[]) => {
+    mutationFn: async ({ notificationIds, userId }: { notificationIds: string[]; userId: string }) => {
       if (notificationIds.length === 0) return
       const { error } = await supabase
         .from('notifications')
         .update({ is_read: true })
         .in('id', notificationIds)
+        .eq('user_id', userId)
       if (error) throw error
     },
     onSuccess: () => {

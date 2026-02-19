@@ -6,11 +6,14 @@ export async function GET(request: Request) {
   const code = searchParams.get('code')
   const next = searchParams.get('next') ?? '/dashboard'
 
+  // 오픈 리다이렉트 방어: 같은 origin의 상대 경로만 허용
+  const safeNext = next.startsWith('/') && !next.startsWith('//') ? next : '/dashboard'
+
   if (code) {
     const supabase = await createClient()
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
-      return NextResponse.redirect(`${origin}${next}`)
+      return NextResponse.redirect(`${origin}${safeNext}`)
     }
   }
 

@@ -37,7 +37,7 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
   // 로그인 필요한 페이지 보호
-  const protectedPaths = ['/dashboard', '/reports', '/attendance', '/members', '/approvals', '/stats', '/users']
+  const protectedPaths = ['/dashboard', '/reports', '/attendance', '/members', '/approvals', '/stats', '/users', '/settings', '/accounting', '/photos']
   const isProtectedPath = protectedPaths.some((path) =>
     pathname.startsWith(path)
   )

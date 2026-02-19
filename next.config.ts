@@ -17,6 +17,20 @@ const nextConfig: NextConfig = {
   // 성능 최적화
   poweredByHeader: false,
   compress: true,
+  // 보안 헤더
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
+        ],
+      },
+    ]
+  },
 };
 
 export default nextConfig;

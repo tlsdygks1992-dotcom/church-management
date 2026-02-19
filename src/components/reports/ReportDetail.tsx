@@ -7,11 +7,22 @@ import { createClient } from '@/lib/supabase/client'
 import { createApprovalNotification } from '@/lib/notifications'
 import { useToastContext } from '@/providers/ToastProvider'
 import { useAuth } from '@/providers/AuthProvider'
+import DOMPurify from 'dompurify'
 import { canAccessAllDepartments, canViewReport } from '@/lib/permissions'
 import { useReportDetail, useReportPrograms, useReportNewcomers, useApprovalHistory, useTeamLeaderIds, useProjectContentItems, useProjectScheduleItems, useProjectBudgetItems, useChangeReportType } from '@/queries/reports'
 import { useCellMembers, useCellAttendanceRecords } from '@/queries/attendance'
 
 type ReportType = 'weekly' | 'meeting' | 'education' | 'cell_leader' | 'project'
+
+/** 인쇄 HTML 템플릿용 HTML 이스케이프 */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
 
 interface ReportDetailProps {
   reportId: string
@@ -139,15 +150,15 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
     if (reportType === 'weekly') {
       const programRows = programs.length > 0
         ? programs.map(p => {
-            const time = p.start_time ? p.start_time.slice(0, 5) : ''
-            let content = p.content || ''
-            if (parsedNotes.sermon_title && content.includes('말씀')) {
-              content += ` [${parsedNotes.sermon_title} ${parsedNotes.sermon_scripture || ''}]`
+            const time = p.start_time ? escapeHtml(p.start_time.slice(0, 5)) : ''
+            let content = escapeHtml(p.content || '')
+            if (parsedNotes.sermon_title && (p.content || '').includes('말씀')) {
+              content += ` [${escapeHtml(parsedNotes.sermon_title)} ${escapeHtml(parsedNotes.sermon_scripture || '')}]`
             }
             return `<tr>
               <td class="cell">${time}</td>
               <td class="cell" style="text-align:left;">${content}</td>
-              <td class="cell">${p.person_in_charge || ''}</td>
+              <td class="cell">${escapeHtml(p.person_in_charge || '')}</td>
               <td class="cell"></td>
             </tr>`
           }).join('')
@@ -157,11 +168,11 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
       if (cellAttendance.length > 0 && cellAttendance.some((c: any) => c.cell_name)) {
         attendanceRows = cellAttendance.map((cell: any) => `
           <tr>
-            <td class="cell">${cell.cell_name || ''}</td>
-            <td class="cell">${cell.registered || ''}</td>
-            <td class="cell">${cell.worship || ''}</td>
-            <td class="cell">${cell.meeting || ''}</td>
-            <td class="cell" style="text-align:left;">${cell.note || ''}</td>
+            <td class="cell">${escapeHtml(cell.cell_name || '')}</td>
+            <td class="cell">${escapeHtml(String(cell.registered || ''))}</td>
+            <td class="cell">${escapeHtml(String(cell.worship || ''))}</td>
+            <td class="cell">${escapeHtml(String(cell.meeting || ''))}</td>
+            <td class="cell" style="text-align:left;">${escapeHtml(cell.note || '')}</td>
           </tr>
         `).join('')
       } else {
@@ -179,12 +190,12 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
       const newcomerRows = newcomers.length > 0
         ? newcomers.map(n => `
             <tr>
-              <td class="cell">${n.name}</td>
-              <td class="cell">${n.phone || ''}</td>
-              <td class="cell">${n.birth_date || ''}</td>
-              <td class="cell">${n.introducer || ''}</td>
-              <td class="cell" style="text-align:left;">${n.address || ''}</td>
-              <td class="cell">${n.affiliation || ''}</td>
+              <td class="cell">${escapeHtml(n.name)}</td>
+              <td class="cell">${escapeHtml(n.phone || '')}</td>
+              <td class="cell">${escapeHtml(n.birth_date || '')}</td>
+              <td class="cell">${escapeHtml(n.introducer || '')}</td>
+              <td class="cell" style="text-align:left;">${escapeHtml(n.address || '')}</td>
+              <td class="cell">${escapeHtml(n.affiliation || '')}</td>
             </tr>
           `).join('')
         : `<tr><td class="cell" colspan="6" style="height:28px;"></td></tr>`
@@ -203,11 +214,11 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
     } else {
       const programRows = programs.length > 0
         ? programs.map(p => {
-            const time = p.start_time ? p.start_time.slice(0, 5) : ''
+            const time = p.start_time ? escapeHtml(p.start_time.slice(0, 5)) : ''
             return `<tr>
               <td class="cell">${time}</td>
-              <td class="cell" style="text-align:left;">${p.content || ''}</td>
-              <td class="cell">${p.person_in_charge || ''}</td>
+              <td class="cell" style="text-align:left;">${escapeHtml(p.content || '')}</td>
+              <td class="cell">${escapeHtml(p.person_in_charge || '')}</td>
               <td class="cell"></td>
             </tr>`
           }).join('')
@@ -328,6 +339,7 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
       // 쿼리 캐시 무효화 → 자동 refetch
       await queryClient.invalidateQueries({ queryKey: ['approvals'] })
       await queryClient.invalidateQueries({ queryKey: ['reports'] })
+      await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       toast.success('제출이 취소되었습니다.')
     } catch (error) {
       console.error('Failed to cancel submission:', error)
@@ -361,6 +373,7 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
       // 관련 쿼리 캐시 무효화
       await queryClient.invalidateQueries({ queryKey: ['approvals'] })
       await queryClient.invalidateQueries({ queryKey: ['reports'] })
+      await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       toast.success('보고서가 삭제되었습니다.')
       router.push('/reports')
     } catch (error) {
@@ -421,12 +434,16 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
         updateData.rejection_reason = comment
       }
 
-      // 병렬 처리 - DB 업데이트, 히스토리, 알림을 동시에 실행
+      // 순차 실행 - 상태 변경 성공 후에만 이력/알림 생성
+      const { error: updateError } = await supabase
+        .from('weekly_reports')
+        .update({ ...updateData, status: newStatus })
+        .eq('id', report.id)
+
+      if (updateError) throw updateError
+
+      // 상태 변경 성공 후 이력 및 알림 생성
       await Promise.all([
-        supabase
-          .from('weekly_reports')
-          .update({ ...updateData, status: newStatus })
-          .eq('id', report.id),
         supabase.from('approval_history').insert({
           report_id: report.id,
           approver_id: currentUser.id,
@@ -447,9 +464,11 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
       // 캐시 무효화 후 이전 페이지로 돌아가기
       await queryClient.invalidateQueries({ queryKey: ['approvals'] })
       await queryClient.invalidateQueries({ queryKey: ['reports'] })
+      await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       router.back()
     } catch (error) {
       console.error(error)
+      toast.error('결재 처리 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)
     }
@@ -671,7 +690,7 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 lg:p-6">
               <h2 className="font-semibold text-gray-900 mb-3 text-sm lg:text-base">{projNum('overview')}. 개요</h2>
               <div className="bg-gray-50 p-4 rounded-xl">
-                <div className="text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: report.main_content }} />
+                <div className="text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(report.main_content) }} />
               </div>
             </div>
           )}
@@ -679,7 +698,7 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 lg:p-6">
               <h2 className="font-semibold text-gray-900 mb-3 text-sm lg:text-base">{projNum('purpose')}. 목적</h2>
               <div className="bg-gray-50 p-4 rounded-xl">
-                <div className="text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: report.application_notes }} />
+                <div className="text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(report.application_notes) }} />
               </div>
             </div>
           )}
@@ -687,7 +706,7 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 lg:p-6">
               <h2 className="font-semibold text-gray-900 mb-3 text-sm lg:text-base">{projNum('organization')}. 조직도</h2>
               <div className="bg-gray-50 p-4 rounded-xl">
-                <div className="text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: parsedNotes.organization }} />
+                <div className="text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(parsedNotes.organization) }} />
               </div>
             </div>
           )}
@@ -839,7 +858,7 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
           <div className="bg-gray-50 p-4 rounded-xl">
             <div
               className="text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none"
-              dangerouslySetInnerHTML={{ __html: report.main_content }}
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(report.main_content) }}
             />
           </div>
         </div>
@@ -912,7 +931,7 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
                 <div className="bg-gray-50 p-3 rounded-xl">
                   <div
                     className="text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none"
-                    dangerouslySetInnerHTML={{ __html: report.application_notes }}
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(report.application_notes) }}
                   />
                 </div>
               </div>
@@ -923,7 +942,7 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
                 <div className="bg-gray-50 p-3 rounded-xl">
                   <div
                     className="text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none"
-                    dangerouslySetInnerHTML={{ __html: parsedNotes.discussion_notes }}
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(parsedNotes.discussion_notes) }}
                   />
                 </div>
               </div>
@@ -934,7 +953,7 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
                 <div className="bg-gray-50 p-3 rounded-xl">
                   <div
                     className="text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none"
-                    dangerouslySetInnerHTML={{ __html: parsedNotes.other_notes }}
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(parsedNotes.other_notes) }}
                   />
                 </div>
               </div>

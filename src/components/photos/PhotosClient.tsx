@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
+import { toLocalDateString } from '@/lib/utils'
 import { useAuth } from '@/providers/AuthProvider'
 import { useDepartments } from '@/queries/departments'
 import { usePhotos, type Photo } from '@/queries/photos'
@@ -31,7 +32,7 @@ export default function PhotosClient() {
     department_id: userDeptId,
     title: '',
     description: '',
-    photo_date: new Date().toISOString().split('T')[0],
+    photo_date: toLocalDateString(new Date()),
   })
   const [uploadFiles, setUploadFiles] = useState<File[]>([])
   const [uploadPreviews, setUploadPreviews] = useState<string[]>([])
@@ -68,12 +69,15 @@ export default function PhotosClient() {
 
     setUploadFiles(files)
 
-    const previews: string[] = []
-    files.forEach(file => {
+    // 인덱스 기반 할당으로 순서 보장
+    const previews: string[] = new Array(files.length).fill('')
+    let loadedCount = 0
+    files.forEach((file, index) => {
       const reader = new FileReader()
       reader.onload = (e) => {
-        previews.push(e.target?.result as string)
-        if (previews.length === files.length) {
+        previews[index] = e.target?.result as string
+        loadedCount++
+        if (loadedCount === files.length) {
           setUploadPreviews([...previews])
         }
       }

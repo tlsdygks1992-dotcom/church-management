@@ -1,4 +1,5 @@
 export interface Program {
+  _key: string
   id?: string
   start_time: string
   end_time: string
@@ -9,6 +10,7 @@ export interface Program {
 }
 
 export interface Newcomer {
+  _key: string
   name: string
   phone: string
   birth_date: string
@@ -18,6 +20,7 @@ export interface Newcomer {
 }
 
 export interface CellAttendance {
+  _key: string
   cell_name: string
   registered: number
   worship: number
@@ -27,6 +30,7 @@ export interface CellAttendance {
 
 // 프로젝트 보고서 타입
 export interface ProjectContentItem {
+  _key: string
   col1: string
   col2: string
   col3: string
@@ -35,6 +39,7 @@ export interface ProjectContentItem {
 }
 
 export interface ProjectScheduleItem {
+  _key: string
   schedule: string
   detail: string
   note: string
@@ -42,6 +47,7 @@ export interface ProjectScheduleItem {
 }
 
 export interface ProjectBudgetItem {
+  _key: string
   category: string
   subcategory: string
   item_name: string
@@ -51,6 +57,12 @@ export interface ProjectBudgetItem {
   amount: number
   note: string
   order_index: number
+}
+
+/** 고유 키 생성 유틸 */
+let _keyCounter = 0
+export function genKey(): string {
+  return `k_${Date.now()}_${++_keyCounter}`
 }
 
 // 5분 단위 시간 옵션 (모듈 레벨 캐싱)

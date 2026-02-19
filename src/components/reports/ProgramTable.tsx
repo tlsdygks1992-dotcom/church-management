@@ -181,7 +181,7 @@ export default function ProgramTable({
       <div className="md:hidden space-y-3">
         {programs.map((program, index) => (
           <ProgramCardMobile
-            key={index}
+            key={program._key}
             program={program}
             index={index}
             onUpdate={onUpdate}
@@ -205,7 +205,7 @@ export default function ProgramTable({
           <tbody className="divide-y divide-gray-100">
             {programs.map((program, index) => (
               <ProgramRowDesktop
-                key={index}
+                key={program._key}
                 program={program}
                 index={index}
                 onUpdate={onUpdate}

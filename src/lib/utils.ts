@@ -40,6 +40,14 @@ export function getWeekNumber(dateStr: string): number {
   return Math.ceil((pastDays + firstDayOfYear.getDay() + 1) / 7)
 }
 
+/** 로컬 날짜를 YYYY-MM-DD 형식으로 포맷 (타임존 안전) */
+export function toLocalDateString(date: Date): string {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
 /** 생년월일에서 나이 계산 */
 export function calculateAge(birthDate: string | null): number | null {
   if (!birthDate) return null

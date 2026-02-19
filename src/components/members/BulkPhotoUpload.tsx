@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo } from 'react'
 import Image from 'next/image'
+import { useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useDepartments } from '@/queries/departments'
 import { useMembers } from '@/queries/members'
@@ -47,6 +48,7 @@ function autoMatchMembers(
 }
 
 export default function BulkPhotoUpload() {
+  const queryClient = useQueryClient()
   const supabase = useMemo(() => createClient(), [])
   const { data: departments = [] } = useDepartments()
   const [selectedDeptId, setSelectedDeptId] = useState<string>('')
@@ -243,7 +245,8 @@ export default function BulkPhotoUpload() {
     }
 
     setIsUploading(false)
-  }, [photos, allMembers, supabase])
+    queryClient.invalidateQueries({ queryKey: ['members'] })
+  }, [photos, allMembers, supabase, queryClient])
 
   // 통계
   const matchedCount = photos.filter((p) => p.matchedMemberId).length

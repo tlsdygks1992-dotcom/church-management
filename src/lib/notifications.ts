@@ -30,6 +30,8 @@ const REPORT_TYPE_LABELS: Record<string, string> = {
   weekly: '주차',
   meeting: '모임',
   education: '교육',
+  cell_leader: '셀장',
+  project: '프로젝트',
 }
 
 // 상태 변경에 따른 수신자 역할 매핑
@@ -204,7 +206,9 @@ function triggerPush(
   userIds: string[],
   payload: { title: string; body: string; link?: string }
 ): void {
-  fetch('/api/push/send', {
+  // 브라우저 환경에서만 실행 (서버사이드에서 상대 URL 사용 방지)
+  if (typeof window === 'undefined') return
+  fetch(`${window.location.origin}/api/push/send`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ userIds, ...payload }),
@@ -237,7 +241,8 @@ export async function getUnreadCount(
  */
 export async function markAsRead(
   supabase: SupabaseClient,
-  notificationIds: string[]
+  notificationIds: string[],
+  userId: string
 ): Promise<boolean> {
   if (notificationIds.length === 0) return true
 
@@ -245,6 +250,7 @@ export async function markAsRead(
     .from('notifications')
     .update({ is_read: true })
     .in('id', notificationIds)
+    .eq('user_id', userId)
 
   if (error) {
     console.error('Failed to mark notifications as read:', error)

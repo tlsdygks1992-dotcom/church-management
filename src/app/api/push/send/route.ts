@@ -16,6 +16,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  // 역할 체크: admin/president/accountant만 푸시 발송 가능
+  const { data: userData } = await supabase
+    .from('users')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  const allowedRoles = ['super_admin', 'president', 'accountant']
+  if (!userData || !allowedRoles.includes(userData.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   const body = await request.json()
   const { userIds, title, body: pushBody, link } = body
 

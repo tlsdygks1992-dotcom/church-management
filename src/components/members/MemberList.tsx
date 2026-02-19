@@ -127,9 +127,7 @@ export default function MemberList({ members, departments, canEdit }: MemberList
 
     deleteMemberMutation.mutate(targetId, {
       onSuccess: () => {
-        startTransition(() => {
-          router.refresh()
-        })
+        // TanStack Query mutation이 자동으로 캐시 무효화
       },
       onError: (err) => {
         // 실패 시 롤백
@@ -142,7 +140,7 @@ export default function MemberList({ members, departments, canEdit }: MemberList
         toast.error('삭제 중 오류가 발생했습니다.')
       },
     })
-  }, [deleteTarget, deleteMemberMutation, router])
+  }, [deleteTarget, deleteMemberMutation])
 
   const handleExportExcel = useCallback(() => {
     const exportData = filteredMembers.map(member => ({

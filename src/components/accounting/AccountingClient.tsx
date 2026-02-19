@@ -3,10 +3,12 @@
 import { useState, useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
+import { toLocalDateString } from '@/lib/utils'
 import { useAuth } from '@/providers/AuthProvider'
 import { useDepartments } from '@/queries/departments'
 import { useAccountingRecordsByMonth } from '@/queries/accounting'
 import { canAccessAllDepartments } from '@/lib/permissions'
+import { useToastContext } from '@/providers/ToastProvider'
 import AccountingLedger from '@/components/accounting/AccountingLedger'
 import AccountingSummary from '@/components/accounting/AccountingSummary'
 import AccountingImport from '@/components/accounting/AccountingImport'
@@ -15,6 +17,7 @@ import Link from 'next/link'
 
 export default function AccountingClient() {
   const { user } = useAuth()
+  const toast = useToastContext()
   const { data: allDepts = [], isLoading: deptsLoading } = useDepartments()
 
   const now = new Date()
@@ -85,7 +88,7 @@ export default function AccountingClient() {
       // 현재 월의 이전 잔액 조회
       const prevMonth = selectedMonth === 1 ? 12 : selectedMonth - 1
       const prevYear = selectedMonth === 1 ? selectedYear - 1 : selectedYear
-      const prevEndDate = new Date(prevYear, prevMonth, 0).toISOString().split('T')[0]
+      const prevEndDate = toLocalDateString(new Date(prevYear, prevMonth, 0))
 
       const { data: prevRecords } = await supabase
         .from('accounting_records')
@@ -127,10 +130,10 @@ export default function AccountingClient() {
         queryKey: ['accounting', effectiveDeptId, selectedYear, selectedMonth],
       })
       setShowImportModal(false)
-      alert(`${data.length}건의 데이터를 가져왔습니다.`)
+      toast.success(`${data.length}건의 데이터를 가져왔습니다.`)
     } catch (error) {
       console.error('가져오기 오류:', error)
-      alert('데이터 가져오기 중 오류가 발생했습니다.')
+      toast.error('데이터 가져오기 중 오류가 발생했습니다.')
     }
 
     setImporting(false)

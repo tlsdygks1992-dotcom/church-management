@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
+import { toLocalDateString } from '@/lib/utils'
 import type { ReportSummary } from '@/types/shared'
 
 const supabase = createClient()
@@ -11,7 +12,7 @@ function getThisSunday(): string {
   const today = new Date()
   const sunday = new Date(today)
   sunday.setDate(today.getDate() - today.getDay())
-  return sunday.toISOString().split('T')[0]
+  return toLocalDateString(sunday)
 }
 
 /** 최근 보고서 5건 */
@@ -54,8 +55,8 @@ export function useThisWeekReport(userId: string | undefined) {
 export function useDashboardPending(userRole: string | undefined) {
   const pendingStatusMap: Record<string, string> = {
     president: 'submitted',
-    manager: 'coordinator_reviewed',
-    pastor: 'manager_approved',
+    accountant: 'coordinator_reviewed',
+    super_admin: 'manager_approved',
   }
   const pendingStatus = userRole ? pendingStatusMap[userRole] || '' : ''
 

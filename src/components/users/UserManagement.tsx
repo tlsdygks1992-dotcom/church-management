@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useTransition, useMemo } from 'react'
+import { useState, useMemo } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
 
 interface User {
   id: string
@@ -49,12 +49,11 @@ const roleOptions = [
 
 export default function UserManagement({ users, departments }: UserManagementProps) {
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved'>('all')
-  const [isPending, startTransition] = useTransition()
   const [saving, setSaving] = useState<string | null>(null)
   const [changes, setChanges] = useState<Record<string, UserChanges>>({})
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set())
-  const router = useRouter()
+  const queryClient = useQueryClient()
   const supabase = useMemo(() => createClient(), [])
 
   const filteredUsers = users.filter((user) => {
@@ -70,15 +69,24 @@ export default function UserManagement({ users, departments }: UserManagementPro
 
   const handleApprove = async (userId: string) => {
     setSaving(userId)
+    setMessage(null)
     try {
-      await supabase
+      const { error } = await supabase
         .from('users')
         .update({ is_active: true })
         .eq('id', userId)
 
-      startTransition(() => {
-        router.refresh()
-      })
+      if (error) {
+        setMessage({ type: 'error', text: `승인 실패: ${error.message}` })
+        setSaving(null)
+        return
+      }
+
+      setMessage({ type: 'success', text: '사용자가 승인되었습니다.' })
+      await queryClient.invalidateQueries({ queryKey: ['users'] })
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류'
+      setMessage({ type: 'error', text: `승인 실패: ${errorMessage}` })
     } finally {
       setSaving(null)
     }
@@ -108,9 +116,7 @@ export default function UserManagement({ users, departments }: UserManagementPro
       setDeletedIds((prev) => new Set([...prev, userId]))
       setMessage({ type: 'success', text: '사용자가 삭제되었습니다.' })
 
-      startTransition(() => {
-        router.refresh()
-      })
+      await queryClient.invalidateQueries({ queryKey: ['users'] })
     } catch (error: unknown) {
       console.error('Delete error:', error)
       const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류'
@@ -160,8 +166,13 @@ export default function UserManagement({ users, departments }: UserManagementPro
         return
       }
 
-      // user_departments 테이블도 업데이트
+      // user_departments 테이블도 업데이트 (기존 부서 삭제 후 새로 추가)
       if (userChanges.department_id) {
+        await supabase
+          .from('user_departments')
+          .delete()
+          .eq('user_id', userId)
+
         await supabase
           .from('user_departments')
           .upsert({ user_id: userId, department_id: userChanges.department_id, is_team_leader: false })
@@ -176,9 +187,7 @@ export default function UserManagement({ users, departments }: UserManagementPro
 
       setMessage({ type: 'success', text: '저장되었습니다.' })
 
-      startTransition(() => {
-        router.refresh()
-      })
+      await queryClient.invalidateQueries({ queryKey: ['users'] })
     } catch (error: unknown) {
       console.error('Save error:', error)
       const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류'

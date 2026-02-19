@@ -62,8 +62,8 @@ export default function NotificationBell({ userId }: NotificationBellProps) {
 
   // 개별 알림 읽음 처리
   const handleRead = useCallback((notificationId: string) => {
-    markAsReadMutation.mutate([notificationId])
-  }, [markAsReadMutation])
+    markAsReadMutation.mutate({ notificationIds: [notificationId], userId })
+  }, [markAsReadMutation, userId])
 
   // 모두 읽음 처리
   const handleMarkAllRead = useCallback(() => {

@@ -1,5 +1,6 @@
 // 출결 통계 계산 로직 (서버/클라이언트 공용)
 // Supabase 클라이언트를 인자로 받아 양쪽에서 사용 가능
+import { toLocalDateString } from '@/lib/utils'
 
 interface Department {
   id: string
@@ -40,7 +41,7 @@ export function getStartDate(period: Period): string {
     startDate = new Date(now.getFullYear(), 0, 1)
   }
 
-  return startDate.toISOString().split('T')[0]
+  return toLocalDateString(startDate)
 }
 
 /** 주 시작일 계산 (일요일 기준) */
@@ -176,7 +177,7 @@ export async function computeWeeklyTrend(
   ;(attendance || []).forEach((record: { attendance_date: string; attendance_type: string }) => {
     const date = new Date(record.attendance_date)
     const weekStart = getWeekStart(date)
-    const weekKey = weekStart.toISOString().split('T')[0]
+    const weekKey = toLocalDateString(weekStart)
 
     if (!weekMap.has(weekKey)) {
       weekMap.set(weekKey, { worship: 0, meeting: 0 })

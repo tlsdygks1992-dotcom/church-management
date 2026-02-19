@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import type { Member } from '@/types/database'
 import PhotoUploader from './PhotoUploader'
@@ -46,6 +47,7 @@ interface MemberFormProps {
 
 export default function MemberForm({ departments, member, newcomerData }: MemberFormProps) {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const supabase = useMemo(() => createClient(), [])
   const isEdit = !!member
 
@@ -140,7 +142,20 @@ export default function MemberForm({ departments, member, newcomerData }: Member
       const fileInput = document.getElementById('photo') as HTMLInputElement
       const file = fileInput?.files?.[0]
       if (file) {
-        const fileExt = file.name.split('.').pop()
+        // 파일 타입/크기 검증
+        const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+        const MAX_SIZE = 10 * 1024 * 1024 // 10MB
+        if (!ALLOWED_TYPES.includes(file.type)) {
+          throw new Error('지원하지 않는 이미지 형식입니다. (JPG, PNG, GIF, WebP만 가능)')
+        }
+        if (file.size > MAX_SIZE) {
+          throw new Error('파일 크기는 10MB 이하만 가능합니다.')
+        }
+        const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp']
+        const fileExt = file.name.split('.').pop()?.toLowerCase() || ''
+        if (!ALLOWED_EXTENSIONS.includes(fileExt)) {
+          throw new Error('지원하지 않는 파일 확장자입니다.')
+        }
         const fileName = `${member?.id || 'new'}_${Date.now()}.${fileExt}`
         const filePath = `members/${fileName}`
 
@@ -202,7 +217,7 @@ export default function MemberForm({ departments, member, newcomerData }: Member
           .eq('member_id', member.id)
 
         if (deleteError) {
-          // 부서 연결 삭제 실패는 무시하고 계속 진행
+          throw new Error(`부서 연결 삭제 실패: ${deleteError.message}`)
         }
 
         const deptRecords = selectedDeptIds.map(deptId => ({
@@ -258,8 +273,8 @@ export default function MemberForm({ departments, member, newcomerData }: Member
         }
       }
 
+      await queryClient.invalidateQueries({ queryKey: ['members'] })
       router.push('/members')
-      router.refresh()
     } catch (err: unknown) {
       let errorMessage = '알 수 없는 오류'
       if (err instanceof Error) {

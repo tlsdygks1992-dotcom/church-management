@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useTransition, useMemo, useCallback, memo } from 'react'
 import Image from 'next/image'
+import { useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { exportAttendanceToExcel } from '@/lib/excel'
 import CellFilter from '@/components/ui/CellFilter'
@@ -133,6 +134,7 @@ export default function AttendanceGrid({
   // 셀별로 필터링할 때 사용할 멤버-셀 매핑
   const [memberCellMap, setMemberCellMap] = useState<Map<string, string | null>>(new Map())
 
+  const queryClient = useQueryClient()
   // Supabase 클라이언트를 useMemo로 캐싱
   const supabase = useMemo(() => createClient(), [])
 
@@ -290,8 +292,9 @@ export default function AttendanceGrid({
       }
     } finally {
       setSaving(null)
+      queryClient.invalidateQueries({ queryKey: ['attendance'] })
     }
-  }, [records, selectedDate, supabase])
+  }, [records, selectedDate, supabase, queryClient])
 
   // 일괄 출석 체크
   const bulkCheckAttendance = useCallback(async (type: 'worship' | 'meeting', markPresent: boolean) => {
@@ -391,8 +394,9 @@ export default function AttendanceGrid({
       }
     } finally {
       setBulkSaving(null)
+      queryClient.invalidateQueries({ queryKey: ['attendance'] })
     }
-  }, [members, records, attendanceMap, selectedDate, supabase])
+  }, [members, records, attendanceMap, selectedDate, supabase, queryClient])
 
   // 엑셀 내보내기
   const handleExportExcel = useCallback(() => {

@@ -196,7 +196,7 @@ export default function NewcomerSection({
           <div className="md:hidden space-y-3">
             {newcomers.map((newcomer, index) => (
               <NewcomerCardMobile
-                key={index}
+                key={newcomer._key}
                 newcomer={newcomer}
                 index={index}
                 onUpdate={onUpdate}
@@ -222,7 +222,7 @@ export default function NewcomerSection({
               <tbody className="divide-y divide-gray-100">
                 {newcomers.map((newcomer, index) => (
                   <NewcomerRowDesktop
-                    key={index}
+                    key={newcomer._key}
                     newcomer={newcomer}
                     index={index}
                     onUpdate={onUpdate}

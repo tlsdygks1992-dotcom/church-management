@@ -2,6 +2,7 @@
 
 import { useMemo, useCallback } from 'react'
 import dynamic from 'next/dynamic'
+import { toLocalDateString } from '@/lib/utils'
 import { useReportStats } from '@/queries/reports'
 import type { ReportStatsRow } from '@/queries/reports'
 import { ChartSkeleton } from '@/components/ui/Skeleton'
@@ -76,7 +77,7 @@ export default function ReportStatsContent({
     return new Date(now.getFullYear(), 0, 1)
   }, [period])
 
-  const startDateStr = useMemo(() => getStartDate().toISOString().split('T')[0], [getStartDate])
+  const startDateStr = useMemo(() => toLocalDateString(getStartDate()), [getStartDate])
 
   const { data: reports = [], isLoading: loading } = useReportStats(selectedDept, startDateStr)
 
@@ -115,7 +116,7 @@ export default function ReportStatsContent({
       const day = date.getDay()
       const weekStart = new Date(date)
       weekStart.setDate(date.getDate() - day)
-      const weekKey = weekStart.toISOString().split('T')[0]
+      const weekKey = toLocalDateString(weekStart)
 
       if (!weekMap.has(weekKey)) {
         weekMap.set(weekKey, { submitted: 0, approved: 0, rejected: 0 })

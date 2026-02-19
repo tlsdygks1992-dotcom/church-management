@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { toLocalDateString } from '@/lib/utils'
 import { useAuth } from '@/providers/AuthProvider'
 import { useDepartments } from '@/queries/departments'
 import { isAdmin as checkAdmin } from '@/lib/permissions'
@@ -27,7 +28,7 @@ export default function NewReportPage() {
   const now = new Date()
   const sunday = new Date(now)
   sunday.setDate(now.getDate() - now.getDay())
-  const sundayStr = sunday.toISOString().split('T')[0]
+  const sundayStr = toLocalDateString(sunday)
 
   // 주차 계산
   const startOfYear = new Date(now.getFullYear(), 0, 1)

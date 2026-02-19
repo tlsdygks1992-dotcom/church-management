@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -33,6 +34,7 @@ interface Member {
 export default function MemberDetailPage() {
   const params = useParams()
   const router = useRouter()
+  const queryClient = useQueryClient()
   const searchParams = useSearchParams()
   const deptParam = searchParams.get('dept')
   const [member, setMember] = useState<Member | null>(null)
@@ -146,6 +148,7 @@ export default function MemberDetailPage() {
       if (updateError) throw updateError
 
       setMember({ ...member, photo_url: photoUrlWithCache })
+      queryClient.invalidateQueries({ queryKey: ['members'] })
       setMessage('사진이 업로드되었습니다.')
     } catch (error) {
       console.error('Upload error:', error)

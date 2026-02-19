@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import { toLocalDateString } from '@/lib/utils'
 import { useAuth } from '@/providers/AuthProvider'
 import { useDepartments } from '@/queries/departments'
 import { useAttendanceMembers, useAttendanceRecordsBrief } from '@/queries/attendance'
@@ -16,7 +17,7 @@ export default function AttendanceClient() {
     const now = new Date()
     const sunday = new Date(now)
     sunday.setDate(now.getDate() - now.getDay())
-    return sunday.toISOString().split('T')[0]
+    return toLocalDateString(sunday)
   }, [])
 
   // 접근 가능한 부서

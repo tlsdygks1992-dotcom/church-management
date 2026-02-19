@@ -15,7 +15,9 @@ function AuthForm() {
 
   const router = useRouter()
   const searchParams = useSearchParams()
-  const redirect = searchParams.get('redirect') || '/dashboard'
+  const rawRedirect = searchParams.get('redirect') || '/dashboard'
+  // 오픈 리다이렉트 방어: 상대 경로만 허용, 프로토콜 상대 URL(//) 차단
+  const redirect = (rawRedirect.startsWith('/') && !rawRedirect.startsWith('//')) ? rawRedirect : '/dashboard'
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()

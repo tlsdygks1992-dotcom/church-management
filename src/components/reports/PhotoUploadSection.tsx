@@ -29,7 +29,7 @@ export default function PhotoUploadSection({
       <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 md:gap-3">
         {/* 미리보기 */}
         {photoPreviews.map((preview, index) => (
-          <div key={index} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100">
+          <div key={`photo-${index}-${preview.slice(-20)}`} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100">
             <img src={preview} alt={`사진 ${index + 1}`} className="w-full h-full object-cover" />
             <button
               type="button"

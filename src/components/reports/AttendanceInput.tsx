@@ -121,7 +121,7 @@ export default function AttendanceInput({
           <tbody className="divide-y divide-gray-100">
             {cellAttendance.map((cell, index) => (
               <CellAttendanceRow
-                key={index}
+                key={cell._key}
                 cell={cell}
                 index={index}
                 onUpdate={onUpdate}

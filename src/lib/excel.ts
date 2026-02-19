@@ -1,3 +1,5 @@
+import { toLocalDateString } from '@/lib/utils'
+
 // XLSX 동적 임포트 (번들 크기 최적화)
 async function loadXLSX() {
   const XLSX = await import('xlsx')
@@ -71,7 +73,7 @@ export async function exportMembersToExcel(members: MemberExportData[], filename
       { key: 'isActive', header: '활동상태' },
       { key: 'joinedAt', header: '등록일' },
     ],
-    { filename: filename || `교인명단_${new Date().toISOString().split('T')[0]}`, sheetName: '교인명단' }
+    { filename: filename || `교인명단_${toLocalDateString(new Date())}`, sheetName: '교인명단' }
   )
 }
 
@@ -128,7 +130,7 @@ export async function exportStatsToExcel(
       { key: 'meetingRate', header: '모임출석률(%)' },
     ],
     {
-      filename: `출석통계_${period}_${new Date().toISOString().split('T')[0]}`,
+      filename: `출석통계_${period}_${toLocalDateString(new Date())}`,
       sheetName: '출석통계'
     }
   )

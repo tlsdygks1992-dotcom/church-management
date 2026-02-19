@@ -28,9 +28,10 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  // 쿼리 파라미터
+  // 쿼리 파라미터 (limit: 1~100 범위로 제한)
   const searchParams = request.nextUrl.searchParams
-  const limit = parseInt(searchParams.get('limit') || '20', 10)
+  const rawLimit = parseInt(searchParams.get('limit') || '20', 10)
+  const limit = Math.min(Math.max(isNaN(rawLimit) ? 20 : rawLimit, 1), 100)
   const unreadOnly = searchParams.get('unread_only') === 'true'
 
   // 알림 조회
@@ -52,12 +53,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to fetch notifications' }, { status: 500 })
   }
 
-  // 읽지 않은 알림 개수 - 별도 쿼리 없이 클라이언트 측 필터링
-  const unreadCount = notifications?.filter(n => !n.is_read).length || 0
+  // 읽지 않은 알림 개수 - 별도 count 쿼리로 정확한 수 반환
+  const { count: unreadCount } = await supabase
+    .from('notifications')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .eq('is_read', false)
 
   return NextResponse.json({
     notifications,
-    unreadCount,
+    unreadCount: unreadCount || 0,
   })
 }
 

@@ -78,6 +78,16 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
+  // Supabase auth 요청은 캐시하지 않음
+  if (url.hostname.includes('supabase') && url.pathname.includes('/auth/')) {
+    return
+  }
+
+  // GET 이외의 요청은 캐시하지 않음
+  if (request.method !== 'GET') {
+    return
+  }
+
   // Supabase API - Stale While Revalidate
   if (url.hostname.includes('supabase')) {
     event.respondWith(staleWhileRevalidate(request, API_CACHE))

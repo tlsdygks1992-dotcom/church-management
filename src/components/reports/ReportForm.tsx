@@ -7,6 +7,7 @@ import { createApprovalNotification } from '@/lib/notifications'
 import { useToastContext } from '@/providers/ToastProvider'
 import dynamic from 'next/dynamic'
 import type { Program, Newcomer, CellAttendance, ProjectContentItem, ProjectScheduleItem, ProjectBudgetItem } from './types'
+import { genKey } from './types'
 import ProgramTable from './ProgramTable'
 import AttendanceInput from './AttendanceInput'
 import NewcomerSection from './NewcomerSection'
@@ -315,6 +316,7 @@ export default function ReportForm({
   // 프로그램 초기화 (기존 데이터가 있으면 사용)
   const initialPrograms: Program[] = existingReport?.programs?.length
     ? existingReport.programs.map(p => ({
+        _key: genKey(),
         id: p.id,
         start_time: p.start_time?.slice(0, 5) || '',
         end_time: '',
@@ -324,23 +326,24 @@ export default function ReportForm({
         order_index: p.order_index,
       }))
     : [
-        { start_time: '13:30', end_time: '13:40', content: '찬양 및 기도', person_in_charge: '', note: '', order_index: 0 },
-        { start_time: '13:40', end_time: '14:00', content: '말씀', person_in_charge: '', note: '', order_index: 1 },
-        { start_time: '14:00', end_time: '14:10', content: '광고', person_in_charge: '', note: '', order_index: 2 },
+        { _key: genKey(), start_time: '13:30', end_time: '13:40', content: '찬양 및 기도', person_in_charge: '', note: '', order_index: 0 },
+        { _key: genKey(), start_time: '13:40', end_time: '14:00', content: '말씀', person_in_charge: '', note: '', order_index: 1 },
+        { _key: genKey(), start_time: '14:00', end_time: '14:10', content: '광고', person_in_charge: '', note: '', order_index: 2 },
       ]
 
   const [programs, setPrograms] = useState<Program[]>(initialPrograms)
 
   // 셀 출결 초기화
   const initialCellAttendance: CellAttendance[] = parsedNotes.cell_attendance?.length
-    ? parsedNotes.cell_attendance
-    : [{ cell_name: '', registered: 0, worship: 0, meeting: 0, note: '' }]
+    ? parsedNotes.cell_attendance.map((c: CellAttendance) => ({ ...c, _key: c._key || genKey() }))
+    : [{ _key: genKey(), cell_name: '', registered: 0, worship: 0, meeting: 0, note: '' }]
 
   const [cellAttendance, setCellAttendance] = useState<CellAttendance[]>(initialCellAttendance)
 
   // 새신자 초기화
   const initialNewcomers: Newcomer[] = existingReport?.newcomers?.length
     ? existingReport.newcomers.map(n => ({
+        _key: genKey(),
         name: n.name,
         phone: n.phone || '',
         birth_date: n.birth_date || '',
@@ -355,26 +358,26 @@ export default function ReportForm({
   // 프로젝트 보고서: 세부계획 내용 (4열 테이블)
   const initialContentItems: ProjectContentItem[] = existingReport?.projectContentItems?.length
     ? existingReport.projectContentItems.map(c => ({
-        col1: c.col1 || '', col2: c.col2 || '', col3: c.col3 || '', col4: c.col4 || '', order_index: c.order_index,
+        _key: genKey(), col1: c.col1 || '', col2: c.col2 || '', col3: c.col3 || '', col4: c.col4 || '', order_index: c.order_index,
       }))
-    : [{ col1: '', col2: '', col3: '', col4: '', order_index: 0 }]
+    : [{ _key: genKey(), col1: '', col2: '', col3: '', col4: '', order_index: 0 }]
   const [contentItems, setContentItems] = useState<ProjectContentItem[]>(initialContentItems)
 
   // 프로젝트 보고서: 세부 일정표
   const initialScheduleItems: ProjectScheduleItem[] = existingReport?.projectScheduleItems?.length
     ? existingReport.projectScheduleItems.map(s => ({
-        schedule: s.schedule || '', detail: s.detail || '', note: s.note || '', order_index: s.order_index,
+        _key: genKey(), schedule: s.schedule || '', detail: s.detail || '', note: s.note || '', order_index: s.order_index,
       }))
-    : [{ schedule: '', detail: '', note: '', order_index: 0 }]
+    : [{ _key: genKey(), schedule: '', detail: '', note: '', order_index: 0 }]
   const [scheduleItems, setScheduleItems] = useState<ProjectScheduleItem[]>(initialScheduleItems)
 
   // 프로젝트 보고서: 예산 (관은 항상 '교육위원회'로 자동 저장)
   const DEFAULT_BUDGET: ProjectBudgetItem[] = [
-    { category: '교육위원회', subcategory: '', item_name: '', basis: '', unit_price: 0, quantity: 1, amount: 0, note: '', order_index: 0 },
+    { _key: genKey(), category: '교육위원회', subcategory: '', item_name: '', basis: '', unit_price: 0, quantity: 1, amount: 0, note: '', order_index: 0 },
   ]
   const initialBudgetItems: ProjectBudgetItem[] = existingReport?.projectBudgetItems?.length
     ? existingReport.projectBudgetItems.map(b => ({
-        category: b.category || '', subcategory: b.subcategory || '', item_name: b.item_name || '',
+        _key: genKey(), category: b.category || '', subcategory: b.subcategory || '', item_name: b.item_name || '',
         basis: b.basis || '', unit_price: b.unit_price ?? b.amount ?? 0, quantity: b.quantity ?? 1,
         amount: b.amount || 0, note: b.note || '', order_index: b.order_index,
       }))
@@ -440,7 +443,7 @@ export default function ReportForm({
 
   // 프로그램 관리
   const addProgram = useCallback(() => {
-    setPrograms(prev => [...prev, { start_time: '', end_time: '', content: '', person_in_charge: '', note: '', order_index: prev.length }])
+    setPrograms(prev => [...prev, { _key: genKey(), start_time: '', end_time: '', content: '', person_in_charge: '', note: '', order_index: prev.length }])
   }, [])
 
   const removeProgram = useCallback((index: number) => {
@@ -453,7 +456,7 @@ export default function ReportForm({
 
   // 셀 출결 관리
   const addCellAttendance = useCallback(() => {
-    setCellAttendance(prev => [...prev, { cell_name: '', registered: 0, worship: 0, meeting: 0, note: '' }])
+    setCellAttendance(prev => [...prev, { _key: genKey(), cell_name: '', registered: 0, worship: 0, meeting: 0, note: '' }])
   }, [])
 
   const removeCellAttendance = useCallback((index: number) => {
@@ -466,7 +469,7 @@ export default function ReportForm({
 
   // 새신자 관리
   const addNewcomer = useCallback(() => {
-    setNewcomers(prev => [...prev, { name: '', phone: '', birth_date: '', introducer: '', address: '', affiliation: '' }])
+    setNewcomers(prev => [...prev, { _key: genKey(), name: '', phone: '', birth_date: '', introducer: '', address: '', affiliation: '' }])
   }, [])
 
   const removeNewcomer = useCallback((index: number) => {
@@ -479,7 +482,7 @@ export default function ReportForm({
 
   // 프로젝트: 세부계획 내용 관리
   const addContentItem = useCallback(() => {
-    setContentItems(prev => [...prev, { col1: '', col2: '', col3: '', col4: '', order_index: prev.length }])
+    setContentItems(prev => [...prev, { _key: genKey(), col1: '', col2: '', col3: '', col4: '', order_index: prev.length }])
   }, [])
   const removeContentItem = useCallback((index: number) => {
     setContentItems(prev => prev.filter((_, i) => i !== index))
@@ -490,7 +493,7 @@ export default function ReportForm({
 
   // 프로젝트: 일정표 관리
   const addScheduleItem = useCallback(() => {
-    setScheduleItems(prev => [...prev, { schedule: '', detail: '', note: '', order_index: prev.length }])
+    setScheduleItems(prev => [...prev, { _key: genKey(), schedule: '', detail: '', note: '', order_index: prev.length }])
   }, [])
   const removeScheduleItem = useCallback((index: number) => {
     setScheduleItems(prev => prev.filter((_, i) => i !== index))
@@ -501,7 +504,7 @@ export default function ReportForm({
 
   // 프로젝트: 예산 관리
   const addBudgetItem = useCallback(() => {
-    setBudgetItems(prev => [...prev, { category: '교육위원회', subcategory: '', item_name: '', basis: '', unit_price: 0, quantity: 1, amount: 0, note: '', order_index: prev.length }])
+    setBudgetItems(prev => [...prev, { _key: genKey(), category: '교육위원회', subcategory: '', item_name: '', basis: '', unit_price: 0, quantity: 1, amount: 0, note: '', order_index: prev.length }])
   }, [])
   const removeBudgetItem = useCallback((index: number) => {
     setBudgetItems(prev => prev.filter((_, i) => i !== index))
@@ -514,6 +517,20 @@ export default function ReportForm({
   const handlePhotoAdd = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
     if (files.length === 0) return
+
+    // 파일 타입/크기 검증
+    const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+    const MAX_SIZE = 10 * 1024 * 1024 // 10MB
+    for (const f of files) {
+      if (!ALLOWED_TYPES.includes(f.type)) {
+        toast.error('지원하지 않는 이미지 형식입니다. (JPG, PNG, GIF, WebP만 가능)')
+        return
+      }
+      if (f.size > MAX_SIZE) {
+        toast.error('파일 크기는 10MB 이하만 가능합니다.')
+        return
+      }
+    }
 
     // 최대 10장 제한
     const totalPhotos = photoFiles.length + files.length
@@ -590,7 +607,7 @@ export default function ReportForm({
           sermon_scripture: form.sermon_scripture,
           discussion_notes: form.discussion_notes,
           other_notes: form.other_notes,
-          cell_attendance: reportType === 'weekly' ? cellAttendance : [],
+          cell_attendance: reportType === 'weekly' ? cellAttendance.map(({ _key, ...rest }) => rest) : [],
           organization: reportType === 'project' ? form.organization : undefined,
           project_sections: reportType === 'project' ? enabledSections : undefined,
         }),
@@ -739,6 +756,7 @@ export default function ReportForm({
             )
           if (attendanceError) {
             console.error('출결 저장 오류:', attendanceError)
+            toast.error('출결 저장 중 오류가 발생했습니다.')
           }
         }
 
@@ -762,7 +780,9 @@ export default function ReportForm({
       if (photoFiles.length > 0) {
         for (let i = 0; i < photoFiles.length; i++) {
           const file = photoFiles[i]
-          const fileExt = file.name.split('.').pop()
+          const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp']
+          const fileExt = file.name.split('.').pop()?.toLowerCase() || ''
+          if (!ALLOWED_EXTENSIONS.includes(fileExt)) continue
           const fileName = `${reportId}/${Date.now()}_${i}.${fileExt}`
 
           const { error: uploadError } = await supabase.storage
@@ -771,6 +791,7 @@ export default function ReportForm({
 
           if (uploadError) {
             console.error('사진 업로드 실패:', uploadError)
+            toast.warning('일부 사진 업로드에 실패했습니다.')
             continue
           }
 
@@ -801,6 +822,7 @@ export default function ReportForm({
       }
 
       await queryClient.invalidateQueries({ queryKey: ['reports'] })
+      await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       router.push(`/reports?type=${reportType}`)
     } catch (err) {
       setError('저장 중 오류가 발생했습니다.')
@@ -1148,7 +1170,7 @@ export default function ReportForm({
                 </thead>
                 <tbody>
                   {contentItems.map((item, i) => (
-                    <tr key={i} className="border-b border-gray-100 last:border-b-0">
+                    <tr key={item._key} className="border-b border-gray-100 last:border-b-0">
                       <td className="px-1 py-1"><input type="text" value={item.col1} onChange={(e) => updateContentItem(i, 'col1', e.target.value)} className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm" placeholder="항목" /></td>
                       <td className="px-1 py-1"><input type="text" value={item.col2} onChange={(e) => updateContentItem(i, 'col2', e.target.value)} className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm" placeholder="내용" /></td>
                       <td className="px-1 py-1"><input type="text" value={item.col3} onChange={(e) => updateContentItem(i, 'col3', e.target.value)} className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm" placeholder="담당" /></td>
@@ -1189,7 +1211,7 @@ export default function ReportForm({
                 </thead>
                 <tbody>
                   {scheduleItems.map((item, i) => (
-                    <tr key={i} className="border-b border-gray-100 last:border-b-0">
+                    <tr key={item._key} className="border-b border-gray-100 last:border-b-0">
                       <td className="px-1 py-1"><input type="text" value={item.schedule} onChange={(e) => updateScheduleItem(i, 'schedule', e.target.value)} className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm" placeholder="예: 3월 1주차" /></td>
                       <td className="px-1 py-1"><input type="text" value={item.detail} onChange={(e) => updateScheduleItem(i, 'detail', e.target.value)} className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm" placeholder="세부내용" /></td>
                       <td className="px-1 py-1"><input type="text" value={item.note} onChange={(e) => updateScheduleItem(i, 'note', e.target.value)} className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm" placeholder="비고" /></td>
@@ -1240,7 +1262,7 @@ export default function ReportForm({
               </thead>
               <tbody>
                 {budgetItems.map((item, i) => (
-                  <tr key={i} className="border-b border-gray-100 last:border-b-0">
+                  <tr key={item._key} className="border-b border-gray-100 last:border-b-0">
                     <td className="px-1 py-1"><input type="text" value={item.subcategory} onChange={(e) => updateBudgetItem(i, 'subcategory', e.target.value)} className="w-full px-1.5 py-1.5 border border-gray-200 rounded text-xs" /></td>
                     <td className="px-1 py-1"><input type="text" value={item.item_name} onChange={(e) => updateBudgetItem(i, 'item_name', e.target.value)} className="w-full px-1.5 py-1.5 border border-gray-200 rounded text-xs" /></td>
                     <td className="px-1 py-1"><input type="text" value={item.basis} onChange={(e) => updateBudgetItem(i, 'basis', e.target.value)} className="w-full px-1.5 py-1.5 border border-gray-200 rounded text-xs" placeholder="세부품목" /></td>
