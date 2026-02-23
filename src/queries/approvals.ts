@@ -27,29 +27,18 @@ const REPORT_SELECT = `
   users!weekly_reports_author_id_fkey(name)
 `
 
-function transformReports(data: any[]): ApprovalReport[] {
-  return data.map((item: any) => {
-    return {
-      id: item.id,
-      meeting_title: item.meeting_title,
-      report_date: item.report_date,
-      status: item.status,
-      created_at: item.created_at,
-      departments: item.departments,
-      users: item.users,
-    }
-  })
-}
-
 /** 결재 대기 보고서 조회 */
 export function usePendingReports(userRole: string) {
   return useQuery({
-    queryKey: ['approvals', 'pending', userRole],
-    queryFn: async (): Promise<ApprovalReport[]> => {
-      let query = supabase.from('weekly_reports').select(REPORT_SELECT)
+    queryKey: ['approvals', 'pending', userRole, 'v2'], // 대시보드와 동일한 v2 키 사용
+    queryFn: async (): Promise<any[]> => {
+      if (!userRole) return []
+
+      let query = supabase
+        .from('weekly_reports')
+        .select('*, departments(name, code), users!weekly_reports_author_id_fkey(name)')
 
       if (userRole === 'super_admin') {
-        // 모든 대기 상태 포함
         query = query.in('status', ['submitted', 'coordinator_reviewed', 'manager_approved'])
       } else if (userRole === 'president') {
         query = query.eq('status', 'submitted')
@@ -67,7 +56,7 @@ export function usePendingReports(userRole: string) {
         console.error('Pending reports fetch error:', error)
         throw error
       }
-      return transformReports(data || [])
+      return data || []
     },
     enabled: !!userRole,
     staleTime: 0,

@@ -197,9 +197,13 @@ export default function ApprovalsClient() {
           </div>
         ) : (
           <div className="divide-y divide-gray-100">
-            {displayReports.map((report: ApprovalReport) => {
+            {displayReports.map((report: any) => {
               const status = STATUS_CONFIG[report.status] || STATUS_CONFIG.submitted
               const weekNum = getWeekNumber(report.report_date)
+              
+              // 부서 및 사용자 데이터 안전하게 추출
+              const dept = Array.isArray(report.departments) ? report.departments[0] : report.departments
+              const userObj = Array.isArray(report.users) ? report.users[0] : report.users
 
               return (
                 <Link
@@ -210,8 +214,8 @@ export default function ApprovalsClient() {
                   <div className="flex items-start md:items-center justify-between gap-3">
                     <div className="flex items-start md:items-center gap-3 md:gap-4 flex-1 min-w-0">
                       <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
-                        <span className="text-blue-700 font-bold text-xs md:text-sm">
-                          {report.departments?.code || '??'}
+                        <span className="text-blue-700 font-bold text-xs md:sm">
+                          {dept?.code?.substring(0, 2).toUpperCase() || '??'}
                         </span>
                       </div>
 
@@ -225,9 +229,9 @@ export default function ApprovalsClient() {
                           </span>
                         </div>
                         <div className="flex flex-wrap items-center gap-1.5 md:gap-3 mt-1 text-xs md:text-sm text-gray-500">
-                          <span>{report.departments?.name}</span>
+                          <span>{dept?.name}</span>
                           <span className="hidden md:inline">·</span>
-                          <span>{report.users?.name}</span>
+                          <span>{userObj?.name}</span>
                           <span className="hidden md:inline">·</span>
                           <span className="text-gray-400 md:text-gray-500">{formatDate(report.report_date)}</span>
                         </div>

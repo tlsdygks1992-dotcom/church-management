@@ -51,13 +51,16 @@ export default function ReportListClient() {
 
   // 열람 권한 필터링
   const filteredReports = useMemo(() => {
-    if (isAdmin) return reports
     return reports.filter(report => {
-      const deptTeamLeaderIds = teamLeaderMap[report.department_id] || []
-      const authorIsTeamLeader = deptTeamLeaderIds.includes(report.author_id)
-      return canViewReport(user, report, authorIsTeamLeader)
+      // 1. 작성 중(draft) 보고서는 오직 본인만 볼 수 있음 (관리자 포함)
+      if (report.status === 'draft') {
+        return user?.id === report.author_id
+      }
+
+      // 2. 그 외(제출됨 이상) 보고서는 누구나 열람 가능 (이전 수정사항 반영)
+      return true
     })
-  }, [reports, user, isAdmin, teamLeaderMap])
+  }, [reports, user])
 
   const handleTypeChange = useCallback((type: ReportType) => {
     const params = new URLSearchParams()
