@@ -161,6 +161,8 @@ export default function ReportForm({
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [existingReportId, setExistingReportId] = useState<string | null>(null)
+  const [existingReportStatus, setExistingReportStatus] = useState<string | null>(null)
 
   // 셀장보고서: 셀 선택 및 셀원 출결 상태
   const [selectedCellId, setSelectedCellId] = useState<string>(existingReport?.cell_id || '')
@@ -563,19 +565,36 @@ export default function ReportForm({
   // 제출
   const handleSubmit = async (e: React.FormEvent, isDraft: boolean = true) => {
     e.preventDefault()
+    
+    // 기본 유효성 검사
+    const reportYear = new Date(form.report_date).getFullYear()
+    if (isNaN(reportYear)) {
+      setError('올바른 날짜를 선택해주세요.')
+      toast.error('올바른 날짜를 선택해주세요.')
+      return
+    }
+
+    if (!form.department_id) {
+      setError('부서를 선택해주세요.')
+      toast.error('부서를 선택해주세요.')
+      return
+    }
+
     setLoading(true)
     setError(null)
+    setExistingReportId(null)
+    setExistingReportStatus(null)
 
     try {
       // 셀별 합계 계산 (주차 보고서)
       const totalRegistered = reportType === 'weekly'
-        ? (cellAttendance.reduce((sum, c) => sum + c.registered, 0) || attendanceSummary.total)
+        ? (cellAttendance.reduce((sum, c) => sum + (Number(c.registered) || 0), 0) || attendanceSummary.total)
         : 0
       const totalWorship = reportType === 'weekly'
-        ? (cellAttendance.reduce((sum, c) => sum + c.worship, 0) || attendanceSummary.worship)
+        ? (cellAttendance.reduce((sum, c) => sum + (Number(c.worship) || 0), 0) || attendanceSummary.worship)
         : 0
       const totalMeeting = reportType === 'weekly'
-        ? (cellAttendance.reduce((sum, c) => sum + c.meeting, 0) || attendanceSummary.meeting)
+        ? (cellAttendance.reduce((sum, c) => sum + (Number(c.meeting) || 0), 0) || attendanceSummary.meeting)
         : 0
 
       // 셀장보고서에서 셀 선택 시 출석자 명단 자동 생성
@@ -591,7 +610,7 @@ export default function ReportForm({
         department_id: form.department_id,
         report_date: form.report_date,
         week_number: reportType === 'weekly' ? weekNumber : null,
-        year: new Date(form.report_date).getFullYear(),
+        year: reportYear,
         total_registered: totalRegistered,
         worship_attendance: totalWorship,
         meeting_attendance: totalMeeting,
@@ -632,102 +651,142 @@ export default function ReportForm({
           .update(updatePayload)
           .eq('id', existingReport.id)
 
-        if (updateError) throw updateError
+        if (updateError) {
+          console.error('보고서 수정 실패:', updateError)
+          throw updateError
+        }
         reportId = existingReport.id
 
-        // 기존 프로그램 삭제 후 재삽입
+        // 기존 하위 항목 삭제 (새신자, 프로그램, 프로젝트 항목 등)
         await supabase.from('report_programs').delete().eq('report_id', reportId)
-
-        // 기존 새신자 삭제 후 재삽입 (주차 보고서만)
         if (reportType === 'weekly') {
           await supabase.from('newcomers').delete().eq('report_id', reportId)
         }
+        if (reportType === 'project') {
+          await supabase.from('project_content_items').delete().eq('report_id', reportId)
+          await supabase.from('project_schedule_items').delete().eq('report_id', reportId)
+          await supabase.from('project_budget_items').delete().eq('report_id', reportId)
+        }
       } else {
-        // 신규 생성
+        // 신규 생성 시 중복 체크 (주차 보고서만)
+        if (reportType === 'weekly') {
+          const { data: existing, error: checkError } = await supabase
+            .from('weekly_reports')
+            .select('id, status')
+            .eq('department_id', form.department_id)
+            .eq('year', reportYear)
+            .eq('week_number', weekNumber)
+            .maybeSingle()
+
+          if (checkError) console.error('중복 체크 오류:', checkError)
+
+          if (existing) {
+            setError(`이미 ${weekNumber}주차 보고서가 존재합니다.`)
+            setExistingReportId(existing.id)
+            setExistingReportStatus(existing.status)
+            toast.warning(`이미 ${weekNumber}주차 보고서가 존재합니다.`)
+            setLoading(false)
+            return
+          }
+        }
+
         const { data: report, error: reportError } = await supabase
           .from('weekly_reports')
           .insert({ ...reportData, author_id: authorId })
           .select()
           .single()
 
-        if (reportError) throw reportError
+        if (reportError) {
+          console.error('보고서 생성 실패:', reportError)
+          throw reportError
+        }
         reportId = report.id
       }
 
-      // 프로그램 저장 (셀장/프로젝트 보고서 제외)
-      if (reportType !== 'cell_leader' && reportType !== 'project' && programs.length > 0) {
-        const { error: programError } = await supabase
-          .from('report_programs')
-          .insert(
-            programs.map((p, i) => ({
-              report_id: reportId,
-              start_time: p.start_time || '00:00',
-              content: `${p.content}${p.note ? ` [${p.note}]` : ''}`,
-              person_in_charge: p.person_in_charge,
-              order_index: i,
-            }))
-          )
-
-        if (programError) throw programError
-      }
-
-      // 새신자 저장 (주차 보고서만)
-      if (reportType === 'weekly' && newcomers.length > 0) {
-        const { error: newcomerError } = await supabase
-          .from('newcomers')
-          .insert(
-            newcomers.filter(n => n.name).map(n => ({
-              report_id: reportId,
-              name: n.name,
-              phone: n.phone || null,
-              birth_date: n.birth_date || null,
-              introducer: n.introducer || null,
-              address: n.address || null,
-              affiliation: n.affiliation || null,
-              department_id: form.department_id,
-            }))
-          )
-
-        if (newcomerError) throw newcomerError
-      }
-
-      // 프로젝트 보고서: 세부계획/일정표/예산 저장
-      if (reportType === 'project') {
-        // 기존 데이터 삭제 (수정 모드)
-        if (editMode && existingReport) {
-          await supabase.from('project_content_items').delete().eq('report_id', reportId)
-          await supabase.from('project_schedule_items').delete().eq('report_id', reportId)
-          await supabase.from('project_budget_items').delete().eq('report_id', reportId)
+      // 1. 프로그램 저장 (셀장/프로젝트 보고서 제외)
+      if (reportType !== 'cell_leader' && reportType !== 'project') {
+        const validPrograms = programs.filter(p => p.content || p.start_time)
+        if (validPrograms.length > 0) {
+          const { error: programError } = await supabase
+            .from('report_programs')
+            .insert(
+              validPrograms.map((p, i) => ({
+                report_id: reportId,
+                start_time: p.start_time || '00:00',
+                content: `${p.content}${p.note ? ` [${p.note}]` : ''}`,
+                person_in_charge: p.person_in_charge,
+                order_index: i,
+              }))
+            )
+          if (programError) {
+            console.error('프로그램 저장 실패:', programError)
+            toast.warning('프로그램 정보 저장 중 오류가 발생했습니다.')
+          }
         }
+      }
+
+      // 2. 새신자 저장 (주차 보고서만)
+      if (reportType === 'weekly') {
+        const validNewcomers = newcomers.filter(n => n.name)
+        if (validNewcomers.length > 0) {
+          const { error: newcomerError } = await supabase
+            .from('newcomers')
+            .insert(
+              validNewcomers.map(n => ({
+                report_id: reportId,
+                name: n.name,
+                phone: n.phone || null,
+                birth_date: n.birth_date || null,
+                introducer: n.introducer || null,
+                address: n.address || null,
+                affiliation: n.affiliation || null,
+                department_id: form.department_id,
+              }))
+            )
+          if (newcomerError) {
+            console.error('새신자 저장 실패:', newcomerError)
+            toast.warning('새신자 명단 저장 중 오류가 발생했습니다.')
+          }
+        }
+      }
+
+      // 3. 프로젝트 보고서: 세부계획/일정표/예산 저장
+      if (reportType === 'project') {
         // 세부계획 내용
-        if (contentItems.some(c => c.col1 || c.col2 || c.col3 || c.col4)) {
-          await supabase.from('project_content_items').insert(
-            contentItems.filter(c => c.col1 || c.col2 || c.col3 || c.col4).map((c, i) => ({
+        const validContent = contentItems.filter(c => c.col1 || c.col2 || c.col3 || c.col4)
+        if (validContent.length > 0) {
+          const { error: err } = await supabase.from('project_content_items').insert(
+            validContent.map((c, i) => ({
               report_id: reportId, col1: c.col1, col2: c.col2, col3: c.col3, col4: c.col4, order_index: i,
             }))
           )
+          if (err) console.error('프로젝트 내용 저장 실패:', err)
         }
         // 세부 일정표
-        if (scheduleItems.some(s => s.schedule || s.detail)) {
-          await supabase.from('project_schedule_items').insert(
-            scheduleItems.filter(s => s.schedule || s.detail).map((s, i) => ({
+        const validSchedule = scheduleItems.filter(s => s.schedule || s.detail)
+        if (validSchedule.length > 0) {
+          const { error: err } = await supabase.from('project_schedule_items').insert(
+            validSchedule.map((s, i) => ({
               report_id: reportId, schedule: s.schedule, detail: s.detail, note: s.note, order_index: i,
             }))
           )
+          if (err) console.error('프로젝트 일정 저장 실패:', err)
         }
         // 예산
-        if (budgetItems.some(b => b.item_name || b.unit_price > 0)) {
-          await supabase.from('project_budget_items').insert(
-            budgetItems.filter(b => b.item_name || b.unit_price > 0).map((b, i) => ({
+        const validBudget = budgetItems.filter(b => b.item_name || b.unit_price > 0)
+        if (validBudget.length > 0) {
+          const { error: err } = await supabase.from('project_budget_items').insert(
+            validBudget.map((b, i) => ({
               report_id: reportId, category: b.category, subcategory: b.subcategory, item_name: b.item_name,
               basis: b.basis, unit_price: b.unit_price || 0, quantity: b.quantity || 1,
               amount: (b.unit_price || 0) * (b.quantity || 0), note: b.note, order_index: i,
             }))
           )
+          if (err) console.error('프로젝트 예산 저장 실패:', err)
         }
       }
 
-      // 셀장보고서: 셀원 출결 → attendance_records 연동
+      // 4. 셀장보고서: 셀원 출결 → attendance_records 연동
       if (reportType === 'cell_leader' && selectedCellId && memberAttendance.length > 0) {
         // 편집 모드: 기존 출결 레코드 삭제 (이 보고서에서 생성한 것만)
         if (editMode && existingReport) {
@@ -763,20 +822,21 @@ export default function ReportForm({
         // 결석자: 기존에 있던 출석 기록이 있으면 삭제
         const absentMembers = memberAttendance.filter(m => !m.isPresent)
         if (absentMembers.length > 0) {
-          await supabase
+          const { error: delErr } = await supabase
             .from('attendance_records')
             .delete()
             .in('member_id', absentMembers.map(m => m.memberId))
             .eq('attendance_date', form.report_date)
             .eq('attendance_type', 'meeting')
             .eq('checked_via', 'cell_report')
+          if (delErr) console.error('결석자 출결 삭제 오류:', delErr)
         }
 
         // 출결 캐시 무효화
         queryClient.invalidateQueries({ queryKey: ['attendance'] })
       }
 
-      // 사진 업로드
+      // 5. 사진 업로드
       if (photoFiles.length > 0) {
         for (let i = 0; i < photoFiles.length; i++) {
           const file = photoFiles[i]
@@ -791,7 +851,6 @@ export default function ReportForm({
 
           if (uploadError) {
             console.error('사진 업로드 실패:', uploadError)
-            toast.warning('일부 사진 업로드에 실패했습니다.')
             continue
           }
 
@@ -799,16 +858,17 @@ export default function ReportForm({
             .from('report-photos')
             .getPublicUrl(fileName)
 
-          await supabase.from('report_photos').insert({
+          const { error: photoInsError } = await supabase.from('report_photos').insert({
             report_id: reportId,
             photo_url: publicUrl,
             order_index: i,
             uploaded_by: authorId,
           })
+          if (photoInsError) console.error('사진 정보 저장 실패:', photoInsError)
         }
       }
 
-      // 제출 시 알림 생성 (신규 제출 + 재제출 모두)
+      // 제출 시 알림 생성
       if (!isDraft) {
         const selectedDept = departments.find(d => d.id === form.department_id)
         await createApprovalNotification(supabase, {
@@ -818,15 +878,33 @@ export default function ReportForm({
           departmentName: selectedDept?.name || '',
           reportType: reportType,
           authorId: authorId,
-        })
+        }).catch(err => console.error('알림 생성 실패:', err))
       }
 
+      toast.success(isDraft ? '임시저장되었습니다.' : '제출되었습니다.')
+      
       await queryClient.invalidateQueries({ queryKey: ['reports'] })
       await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      router.push(`/reports?type=${reportType}`)
-    } catch (err) {
-      setError('저장 중 오류가 발생했습니다.')
-      console.error(err)
+      
+      // 약간의 지연 후 이동 (캐시 무효화 반영 시간 확보)
+      setTimeout(() => {
+        if (!editMode && isDraft) {
+          // 새 보고서 임시저장 시 → 수정 페이지로 이동하여 중복 생성 방지
+          router.push(`/reports/${reportId}/edit`)
+        } else {
+          // 제출 완료 혹은 기존 보고서 수정 시 → 목록으로 이동
+          router.push(`/reports?type=${reportType}`)
+        }
+      }, 500)
+    } catch (err: any) {
+      console.error('handleSubmit error:', err)
+      const pgError = err as { code?: string; message?: string; details?: string }
+      if (pgError.code === '23505') {
+        setError(`이미 해당 날짜/주차의 보고서가 존재합니다. (중복 오류)`)
+      } else {
+        setError(`저장 중 오류가 발생했습니다: ${pgError.message || '알 수 없는 에러'}`)
+      }
+      toast.error('저장에 실패했습니다. 내용을 확인해주세요.')
     } finally {
       setLoading(false)
     }
@@ -1365,7 +1443,28 @@ export default function ReportForm({
 
       {error && (
         <div className="bg-red-50 text-red-600 px-3 md:px-4 py-2.5 md:py-3 rounded-xl text-sm">
-          {error}
+          <p>{error}</p>
+          {existingReportId && (
+            <div className="mt-2 flex gap-2">
+              {existingReportStatus === 'draft' || existingReportStatus === 'rejected' ? (
+                <button
+                  type="button"
+                  onClick={() => router.push(`/reports/${existingReportId}/edit`)}
+                  className="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  기존 보고서 수정하기
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => router.push(`/reports/${existingReportId}`)}
+                  className="inline-flex items-center px-3 py-1.5 bg-gray-600 text-white text-xs font-medium rounded-lg hover:bg-gray-700 transition-colors"
+                >
+                  기존 보고서 보기
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
 

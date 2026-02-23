@@ -218,7 +218,7 @@ export default function ApprovalsClient() {
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="font-medium text-gray-900 text-sm md:text-base truncate">
-                            {report.title || `${new Date(report.report_date).getMonth() + 1}월 ${weekNum}주차 보고서`}
+                            {report.meeting_title || `${new Date(report.report_date).getMonth() + 1}월 ${weekNum}주차 보고서`}
                           </h3>
                           <span className={`md:hidden px-2 py-0.5 rounded-full text-xs font-medium border ${status.bgColor} ${status.color}`}>
                             {status.label}

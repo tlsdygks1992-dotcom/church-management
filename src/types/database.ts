@@ -136,18 +136,30 @@ export interface Database {
           rejected_by: string | null
           rejected_at: string | null
           rejection_reason: string | null
+          report_type: ReportType
+          meeting_title: string | null
+          meeting_location: string | null
+          attendees: string | null
+          main_content: string | null
+          application_notes: string | null
           cell_id: string | null
           created_at: string
           updated_at: string
         }
         Insert: Omit<Database['public']['Tables']['weekly_reports']['Row'],
-          'id' | 'created_at' | 'updated_at' | 'total_registered' | 'worship_attendance' | 'meeting_attendance' | 'status' | 'year' | 'cell_id'>
+          'id' | 'created_at' | 'updated_at' | 'total_registered' | 'worship_attendance' | 'meeting_attendance' | 'status' | 'year' | 'cell_id' | 'report_type' | 'meeting_title' | 'meeting_location' | 'attendees' | 'main_content' | 'application_notes'>
           & {
             total_registered?: number
             worship_attendance?: number
             meeting_attendance?: number
             status?: ApprovalStatus
             year?: number
+            report_type?: ReportType
+            meeting_title?: string | null
+            meeting_location?: string | null
+            attendees?: string | null
+            main_content?: string | null
+            application_notes?: string | null
             cell_id?: string | null
           }
         Update: Partial<Database['public']['Tables']['weekly_reports']['Insert']>

@@ -13,7 +13,7 @@ const ROLE_STATUS_MAP: Record<string, string> = {
 
 export interface ApprovalReport {
   id: string
-  title: string
+  meeting_title: string | null
   report_date: string
   status: string
   created_at: string
@@ -22,22 +22,21 @@ export interface ApprovalReport {
 }
 
 const REPORT_SELECT = `
-  id, title, report_date, status, created_at,
+  id, meeting_title, report_date, status, created_at,
   departments(name, code),
   users!weekly_reports_author_id_fkey(name)
 `
 
-function transformReports(data: unknown[]): ApprovalReport[] {
-  return data.map((item: unknown) => {
-    const row = item as Record<string, unknown>
+function transformReports(data: any[]): ApprovalReport[] {
+  return data.map((item: any) => {
     return {
-      id: row.id as string,
-      title: row.title as string,
-      report_date: row.report_date as string,
-      status: row.status as string,
-      created_at: row.created_at as string,
-      departments: Array.isArray(row.departments) ? row.departments[0] : row.departments,
-      users: Array.isArray(row.users) ? row.users[0] : row.users,
+      id: item.id,
+      meeting_title: item.meeting_title,
+      report_date: item.report_date,
+      status: item.status,
+      created_at: item.created_at,
+      departments: Array.isArray(item.departments) ? item.departments[0] : item.departments,
+      users: Array.isArray(item.users) ? item.users[0] : item.users,
     }
   })
 }

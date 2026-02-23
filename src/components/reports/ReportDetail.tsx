@@ -106,13 +106,41 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
   const [showTypeChangeModal, setShowTypeChangeModal] = useState(false)
   const [newReportType, setNewReportType] = useState<ReportType>('weekly')
 
-  // 저장된 프린터 IP 불러오기
-  useEffect(() => {
-    const savedIP = localStorage.getItem('printerIP')
-    if (savedIP) {
-      setPrinterIP(savedIP)
+  // 데이터 가공 로직을 조기 리턴 위로 이동 (Hook 규칙 준수)
+  const parsedNotes = useMemo(() => {
+    try {
+      return report?.notes ? JSON.parse(report.notes) : {}
+    } catch {
+      return {}
     }
-  }, [])
+  }, [report?.notes])
+
+  const projectSections = useMemo(() => 
+    parsedNotes.project_sections || [
+      'overview', 'purpose', 'organization', 'content', 'schedule', 'budget', 'discussion', 'other'
+    ]
+  , [parsedNotes.project_sections])
+
+  const hasProjSection = useCallback((id: string) => 
+    reportType !== 'project' || projectSections.includes(id)
+  , [reportType, projectSections])
+
+  const projNumMap = useMemo(() => {
+    const map: Record<string, number> = {}
+    if (reportType === 'project') {
+      let n = 1
+      for (const id of ['overview', 'purpose', 'organization', 'content', 'schedule', 'budget']) {
+        if (!projectSections.includes(id)) continue
+        if (id === 'schedule' && map['content']) continue
+        map[id] = n
+        if (id === 'content') map['schedule'] = n
+        n++
+      }
+    }
+    return map
+  }, [reportType, projectSections])
+
+  const projNum = useCallback((id: string) => projNumMap[id] || '', [projNumMap])
 
   // 부서명 표시
   const getDeptDisplayName = useCallback(() => {
@@ -132,139 +160,13 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
     return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`
   }, [])
 
-  // 인쇄 핸들러
-  const handlePrint = useCallback((directIP?: string) => {
-    if (!report) return
-    let parsedNotes: Record<string, any> = {}
-    try {
-      parsedNotes = report.notes ? JSON.parse(report.notes) : {}
-    } catch {
-      parsedNotes = {}
+  // 저장된 프린터 IP 불러오기
+  useEffect(() => {
+    const savedIP = localStorage.getItem('printerIP')
+    if (savedIP) {
+      setPrinterIP(savedIP)
     }
-    const cellAttendance = parsedNotes.cell_attendance || []
-    const reportDate = new Date(report.report_date)
-
-    // 보고서 유형에 따라 다른 HTML 생성
-    let html = ''
-
-    if (reportType === 'weekly') {
-      const programRows = programs.length > 0
-        ? programs.map(p => {
-            const time = p.start_time ? escapeHtml(p.start_time.slice(0, 5)) : ''
-            let content = escapeHtml(p.content || '')
-            if (parsedNotes.sermon_title && (p.content || '').includes('말씀')) {
-              content += ` [${escapeHtml(parsedNotes.sermon_title)} ${escapeHtml(parsedNotes.sermon_scripture || '')}]`
-            }
-            return `<tr>
-              <td class="cell">${time}</td>
-              <td class="cell" style="text-align:left;">${content}</td>
-              <td class="cell">${escapeHtml(p.person_in_charge || '')}</td>
-              <td class="cell"></td>
-            </tr>`
-          }).join('')
-        : `<tr><td class="cell" colspan="4" style="height:60px;"></td></tr>`
-
-      let attendanceRows = ''
-      if (cellAttendance.length > 0 && cellAttendance.some((c: any) => c.cell_name)) {
-        attendanceRows = cellAttendance.map((cell: any) => `
-          <tr>
-            <td class="cell">${escapeHtml(cell.cell_name || '')}</td>
-            <td class="cell">${escapeHtml(String(cell.registered || ''))}</td>
-            <td class="cell">${escapeHtml(String(cell.worship || ''))}</td>
-            <td class="cell">${escapeHtml(String(cell.meeting || ''))}</td>
-            <td class="cell" style="text-align:left;">${escapeHtml(cell.note || '')}</td>
-          </tr>
-        `).join('')
-      } else {
-        for (let i = 0; i < 3; i++) {
-          attendanceRows += `<tr>
-            <td class="cell" style="height:28px;"></td>
-            <td class="cell"></td>
-            <td class="cell"></td>
-            <td class="cell"></td>
-            <td class="cell"></td>
-          </tr>`
-        }
-      }
-
-      const newcomerRows = newcomers.length > 0
-        ? newcomers.map(n => `
-            <tr>
-              <td class="cell">${escapeHtml(n.name)}</td>
-              <td class="cell">${escapeHtml(n.phone || '')}</td>
-              <td class="cell">${escapeHtml(n.birth_date || '')}</td>
-              <td class="cell">${escapeHtml(n.introducer || '')}</td>
-              <td class="cell" style="text-align:left;">${escapeHtml(n.address || '')}</td>
-              <td class="cell">${escapeHtml(n.affiliation || '')}</td>
-            </tr>
-          `).join('')
-        : `<tr><td class="cell" colspan="6" style="height:28px;"></td></tr>`
-
-      html = generateWeeklyPrintHTML(getDeptDisplayName(), report, reportDate, programRows, attendanceRows, newcomerRows, parsedNotes)
-    } else if (reportType === 'project') {
-      html = generateProjectPrintHTML(
-        report.meeting_title || getDeptDisplayName(),
-        report,
-        reportDate,
-        parsedNotes,
-        projectContentItems,
-        projectScheduleItems,
-        projectBudgetItems
-      )
-    } else {
-      const programRows = programs.length > 0
-        ? programs.map(p => {
-            const time = p.start_time ? escapeHtml(p.start_time.slice(0, 5)) : ''
-            return `<tr>
-              <td class="cell">${time}</td>
-              <td class="cell" style="text-align:left;">${escapeHtml(p.content || '')}</td>
-              <td class="cell">${escapeHtml(p.person_in_charge || '')}</td>
-              <td class="cell"></td>
-            </tr>`
-          }).join('')
-        : `<tr><td class="cell" colspan="4" style="height:60px;"></td></tr>`
-
-      html = generateMeetingPrintHTML(
-        reportType,
-        report.meeting_title || getDeptDisplayName(),
-        report,
-        reportDate,
-        programRows,
-        parsedNotes,
-        cellMembers,
-        cellAttendanceRecords
-      )
-    }
-
-    // 인쇄 실행
-    const printFrame = document.createElement('iframe')
-    printFrame.style.position = 'fixed'
-    printFrame.style.right = '0'
-    printFrame.style.bottom = '0'
-    printFrame.style.width = '0'
-    printFrame.style.height = '0'
-    printFrame.style.border = 'none'
-    document.body.appendChild(printFrame)
-
-    const frameDoc = printFrame.contentWindow?.document
-    if (frameDoc) {
-      frameDoc.open()
-      frameDoc.write(html)
-      frameDoc.close()
-
-      printFrame.onload = () => {
-        setTimeout(() => {
-          printFrame.contentWindow?.focus()
-          printFrame.contentWindow?.print()
-          setTimeout(() => {
-            document.body.removeChild(printFrame)
-          }, 1000)
-        }, 250)
-      }
-    }
-
-    setShowPrintOptions(false)
-  }, [report, programs, newcomers, getDeptDisplayName, reportType, projectContentItems, projectScheduleItems, projectBudgetItems, cellMembers, cellAttendanceRecords])
+  }, [])
 
   // 로딩 상태
   if (reportLoading || programsLoading || !currentUser) {
@@ -473,33 +375,6 @@ export default function ReportDetail({ reportId }: ReportDetailProps) {
       setLoading(false)
     }
   }
-
-  let parsedNotes: Record<string, any> = {}
-  try {
-    parsedNotes = report.notes ? JSON.parse(report.notes) : {}
-  } catch {
-    parsedNotes = {}
-  }
-
-  // 프로젝트 기획서: 활성화된 섹션 (없으면 전체 표시 - 하위 호환)
-  const projectSections: string[] = parsedNotes.project_sections || [
-    'overview', 'purpose', 'organization', 'content', 'schedule', 'budget', 'discussion', 'other'
-  ]
-  const hasProjSection = (id: string) => reportType !== 'project' || projectSections.includes(id)
-
-  // 동적 번호 매기기
-  const projNumMap: Record<string, number> = {}
-  if (reportType === 'project') {
-    let n = 1
-    for (const id of ['overview', 'purpose', 'organization', 'content', 'schedule', 'budget']) {
-      if (!projectSections.includes(id)) continue
-      if (id === 'schedule' && projNumMap['content']) continue
-      projNumMap[id] = n
-      if (id === 'content') projNumMap['schedule'] = n
-      n++
-    }
-  }
-  const projNum = (id: string) => projNumMap[id] || ''
 
   return (
     <div className="space-y-4 lg:space-y-6 max-w-4xl mx-auto">

@@ -60,7 +60,14 @@ function AuthForm() {
     })
 
     if (error) {
-      setError('비밀번호 재설정 요청에 실패했습니다. 잠시 후 다시 시도해주세요.')
+      console.error('Password reset error:', error)
+      if (error.message.includes('Email rate limit')) {
+        setError('너무 많은 요청이 발생했습니다. 잠시 후 다시 시도해주세요. (Supabase 기본 SMTP 사용 시 시간당 요청 제한이 있을 수 있습니다.)')
+      } else if (error.message.includes('Invalid email')) {
+        setError('유효하지 않은 이메일 주소입니다.')
+      } else {
+        setError(`비밀번호 재설정 요청 실패: ${error.message}`)
+      }
       setLoading(false)
       return
     }
