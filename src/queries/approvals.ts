@@ -22,7 +22,7 @@ export interface ApprovalReport {
 }
 
 const REPORT_SELECT = `
-  id, meeting_title, report_date, status, created_at,
+  *,
   departments(name, code),
   users!weekly_reports_author_id_fkey(name)
 `
@@ -35,8 +35,8 @@ function transformReports(data: any[]): ApprovalReport[] {
       report_date: item.report_date,
       status: item.status,
       created_at: item.created_at,
-      departments: Array.isArray(item.departments) ? item.departments[0] : item.departments,
-      users: Array.isArray(item.users) ? item.users[0] : item.users,
+      departments: item.departments,
+      users: item.users,
     }
   })
 }
@@ -46,30 +46,31 @@ export function usePendingReports(userRole: string) {
   return useQuery({
     queryKey: ['approvals', 'pending', userRole],
     queryFn: async (): Promise<ApprovalReport[]> => {
-      let query
+      let query = supabase.from('weekly_reports').select(REPORT_SELECT)
 
       if (userRole === 'super_admin') {
-        query = supabase
-          .from('weekly_reports')
-          .select(REPORT_SELECT)
-          .in('status', ['submitted', 'coordinator_reviewed', 'manager_approved'])
-          .order('created_at', { ascending: false })
+        // 모든 대기 상태 포함
+        query = query.in('status', ['submitted', 'coordinator_reviewed', 'manager_approved'])
+      } else if (userRole === 'president') {
+        query = query.eq('status', 'submitted')
+      } else if (userRole === 'accountant') {
+        query = query.eq('status', 'coordinator_reviewed')
       } else {
-        const pendingStatus = ROLE_STATUS_MAP[userRole]
-        query = supabase
-          .from('weekly_reports')
-          .select(REPORT_SELECT)
-          .eq('status', pendingStatus || 'submitted')
-          .order('created_at', { ascending: false })
+        return []
       }
 
       const { data, error } = await query
-      if (error) throw error
+        .order('report_date', { ascending: false })
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('Pending reports fetch error:', error)
+        throw error
+      }
       return transformReports(data || [])
     },
     enabled: !!userRole,
     staleTime: 0,
-    refetchOnMount: 'always',
   })
 }
 

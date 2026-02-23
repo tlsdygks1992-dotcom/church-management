@@ -54,18 +54,15 @@ export function useThisWeekReport(userId: string | undefined) {
 /** 역할별 결재 대기 보고서 */
 export function useDashboardPending(userRole: string | undefined) {
   return useQuery({
-    queryKey: ['dashboard', 'pending', userRole],
+    queryKey: ['dashboard', 'pending', userRole, 'v2'], // 키 변경으로 캐시 무효화
     queryFn: async (): Promise<ReportSummary[]> => {
       if (!userRole) return []
 
       let query = supabase
         .from('weekly_reports')
         .select('*, departments(name), users!weekly_reports_author_id_fkey(name)')
-        .order('report_date', { ascending: false })
 
       if (userRole === 'super_admin') {
-        // 목사는 모든 결재 단계의 보고서를 대기 중으로 간주 (또는 확인 대기만)
-        // 결재함과 일치시키기 위해 in 조건 사용
         query = query.in('status', ['submitted', 'coordinator_reviewed', 'manager_approved'])
       } else if (userRole === 'president') {
         query = query.eq('status', 'submitted')
@@ -76,11 +73,14 @@ export function useDashboardPending(userRole: string | undefined) {
       }
 
       const { data, error } = await query
+        .order('report_date', { ascending: false })
+        .order('created_at', { ascending: false })
+
       if (error) throw error
       return (data || []) as ReportSummary[]
     },
     enabled: !!userRole,
-    staleTime: 30 * 1000,
+    staleTime: 0, // 대시보드에서도 즉시 갱신
   })
 }
 
